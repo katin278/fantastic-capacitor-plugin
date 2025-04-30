@@ -166,27 +166,36 @@ public class tools {
      * @return 安全协议类型
      */
     private String getSecurityType(ScanResult scanResult) {
+        // 从scanResult获取capabilities字符串
+        String capabilities = scanResult.capabilities;
+        Log.d(TAG, "Wi-Fi capabilities: " + capabilities);
              
-        // if (capabilities.contains("WEP")) {
-        //     return "WEP";
-        // } else if (capabilities.contains("WPA3-Enterprise")) {
-        //     return "WPA3-Enterprise";
-        // } else if (capabilities.contains("WPA3-SAE")) {
-        //     return "WPA3-Personal";
-        // } else if (capabilities.contains("WPA2-Enterprise")) {
-        //     return "WPA2-Enterprise";
-        // } else if (capabilities.contains("RSN") || capabilities.contains("WPA2")) {
-        //     return "WPA2-Personal";
-        // } else if (capabilities.contains("WPA-PSK")) {
-        //     return "WPA-Personal";
-        // } else if (capabilities.contains("WPA-EAP")) {
-        //     return "WPA-Enterprise";
-        // } else if (capabilities.contains("[ESS]")) {
-        //     return "Open";
-        // } else {
-        //     return "Unknown";
-        // }
-        return scanResult.capabilities;
+        // 更精确的安全类型判断
+        if (capabilities.contains("WEP")) {
+            return "WEP";
+        } 
+        else if (capabilities.contains("RSN-OWE_TRANSITION-CCMP")) {
+            return "Open";
+        }
+        else if (capabilities.contains("WPA3-Enterprise")) {
+            return "WPA3-Enterprise";
+        } else if (capabilities.contains("WPA3") || capabilities.contains("SAE")) {
+            return "WPA3-Personal";
+        } else if (capabilities.contains("WPA2-Enterprise") || 
+                  (capabilities.contains("WPA2") && capabilities.contains("EAP"))) {
+            return "WPA2-Enterprise";
+        } else if (capabilities.contains("WPA-EAP") || 
+                  (capabilities.contains("WPA") && capabilities.contains("EAP"))) {
+            return "WPA-Enterprise";
+        } else if (capabilities.contains("RSN") || capabilities.contains("WPA2")) {
+            return "WPA2-Personal";
+        } else if (capabilities.contains("WPA-PSK") || capabilities.contains("WPA")) {
+            return "WPA-Personal";
+        } else if (capabilities.isEmpty() || capabilities.equals("[ESS]")) {
+            return "Open";
+        } else {
+            return "Unknown";
+        }
     }
     
     /**

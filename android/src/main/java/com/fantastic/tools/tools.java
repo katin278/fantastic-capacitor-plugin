@@ -233,13 +233,13 @@ public class tools {
             }
             
             // 根据Android版本使用不同的连接方式
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10+使用新的NetworkRequest API
-                return connectToWifiAndroid10Plus(context, ssid, password, isEnterpriseNetwork, identity);
-            } else {
+            // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            //     // Android 10+使用新的NetworkRequest API
+            //     return connectToWifiAndroid10Plus(context, ssid, password, isEnterpriseNetwork, identity);
+            // } else {
                 // Android 9及以下使用传统的WifiConfiguration API
                 return connectToWifiLegacy(context, wifiManager, ssid, password, isEnterpriseNetwork, identity);
-            }
+            // }
         } catch (Exception e) {
             Log.e(TAG, "连接Wi-Fi出错: " + e.getMessage());
             return false;

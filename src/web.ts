@@ -8,6 +8,16 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     return options;
   }
   
+  async checkPermissions(options: { 
+    permissions: string[] 
+  }): Promise<{ [permission: string]: boolean }> {
+    console.log('Web平台不支持检查Android权限', options);
+    return options.permissions.reduce((result, permission) => {
+      result[permission] = false;
+      return result;
+    }, {} as { [permission: string]: boolean });
+  }
+  
   async checkWifiPermissions(): Promise<{ hasPermissions: boolean }> {
     console.log('Web平台不支持检查Wi-Fi权限');
     return { hasPermissions: false };

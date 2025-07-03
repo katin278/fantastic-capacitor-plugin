@@ -14,6 +14,7 @@ npx cap sync
 <docgen-index>
 
 * [`echo(...)`](#echo)
+* [`checkPermissions(...)`](#checkpermissions)
 * [`checkWifiPermissions()`](#checkwifipermissions)
 * [`requestWifiPermissions()`](#requestwifipermissions)
 * [`getWifiList()`](#getwifilist)
@@ -38,6 +39,23 @@ echo(options: { value: string; }) => Promise<{ value: string; }>
 | **`options`** | <code>{ value: string; }</code> |
 
 **Returns:** <code>Promise&lt;{ value: string; }&gt;</code>
+
+--------------------
+
+
+### checkPermissions(...)
+
+```typescript
+checkPermissions(options: { permissions: string[]; }) => Promise<{ [permission: string]: boolean; }>
+```
+
+检查指定的Android权限是否已被授予
+
+| Param         | Type                                    |
+| ------------- | --------------------------------------- |
+| **`options`** | <code>{ permissions: string[]; }</code> |
+
+**Returns:** <code>Promise&lt;{ [permission: string]: boolean; }&gt;</code>
 
 --------------------
 

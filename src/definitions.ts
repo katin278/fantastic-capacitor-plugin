@@ -18,6 +18,27 @@ export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
   /**
+   * 检查指定的Android权限是否已被授予
+   * @param options.permissions 要检查的权限数组
+   * @returns 包含每个权限及其授予状态的对象
+   * @example
+   * const result = await tools.checkPermissions({
+   *   permissions: [
+   *     'android.permission.CAMERA',
+   *     'android.permission.ACCESS_FINE_LOCATION'
+   *   ]
+   * });
+   * // 返回结果示例：
+   * // {
+   * //   "android.permission.CAMERA": true,
+   * //   "android.permission.ACCESS_FINE_LOCATION": false
+   * // }
+   */
+  checkPermissions(options: { 
+    permissions: string[] 
+  }): Promise<{ [permission: string]: boolean }>;
+  
+  /**
    * 检查是否具有Wi-Fi相关权限
    */
   checkWifiPermissions(): Promise<{ hasPermissions: boolean }>;

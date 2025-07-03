@@ -45,6 +45,36 @@ public class toolsPlugin extends Plugin {
     private static final String TAG = "FantasticWifiTools";
 
     @PluginMethod
+    public void checkPermissions(PluginCall call) {
+        JSArray permissionsArray = call.getArray("permissions");
+        if (permissionsArray == null) {
+            call.reject("permissions参数不能为空");
+            return;
+        }
+
+        try {
+            String[] permissions = new String[permissionsArray.length()];
+            for (int i = 0; i < permissionsArray.length(); i++) {
+                permissions[i] = permissionsArray.getString(i);
+            }
+
+            JSONObject permissionResults = implementation.checkPermissions(getContext(), permissions);
+            
+            // 直接创建权限结果对象
+            JSObject result = new JSObject();
+            Iterator<String> keys = permissionResults.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                result.put(key, permissionResults.getBoolean(key));
+            }
+            
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("检查权限失败: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void echo(PluginCall call) {
         String value = call.getString("value");
 

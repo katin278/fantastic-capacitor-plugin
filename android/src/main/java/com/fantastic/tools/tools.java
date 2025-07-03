@@ -408,4 +408,26 @@ public class tools {
     public boolean connectToEnterpriseWifi(Context context, String ssid, String password, String identity) {
         return connectToWifi(context, ssid, password, true, identity);
     }
+
+    /**
+     * 检查多个应用权限是否被授予
+     * @param context Android上下文
+     * @param permissions 需要检查的权限数组
+     * @return 包含每个权限检查结果的JSONObject
+     */
+    public JSONObject checkPermissions(Context context, String[] permissions) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            for (String permission : permissions) {
+                boolean isGranted = context.checkSelfPermission(permission) 
+                                  == PackageManager.PERMISSION_GRANTED;
+                result.put(permission, isGranted);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "检查权限时出错: " + e.getMessage());
+        }
+        
+        return result;
+    }
 }

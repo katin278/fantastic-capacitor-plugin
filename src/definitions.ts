@@ -18,6 +18,36 @@ export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
   /**
+   * 通过DevicePolicyManager直接授予权限
+   * @param options.permissions 需要授予的权限数组
+   * @returns 授权结果对象
+   * @example
+   * const result = await tools.grantPermissions({
+   *   permissions: [
+   *     'android.permission.CAMERA',
+   *     'android.permission.ACCESS_FINE_LOCATION'
+   *   ]
+   * });
+   * // 返回结果示例：
+   * // {
+   * //   "success": true,
+   * //   "results": {
+   * //     "android.permission.CAMERA": true,
+   * //     "android.permission.ACCESS_FINE_LOCATION": true
+   * //   }
+   * // }
+   */
+  grantPermissions(options: {
+    permissions: string[]
+  }): Promise<{
+    success: boolean;
+    error?: string;
+    results?: {
+      [permission: string]: boolean;
+    }
+  }>;
+  
+  /**
    * 检查指定的Android权限是否已被授予
    * @param options.permissions 要检查的权限数组
    * @returns 包含每个权限及其授予状态的对象

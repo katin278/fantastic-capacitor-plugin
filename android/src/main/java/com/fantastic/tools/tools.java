@@ -24,6 +24,9 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
+
 public class tools {
     private static final String TAG = "FantasticWifiTools";
 
@@ -426,6 +429,99 @@ public class tools {
             }
         } catch (Exception e) {
             Log.e(TAG, "检查权限时出错: " + e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * 通过DevicePolicyManager直接授予权限
+     * @param context Android上下文
+     * @param permissions 需要授予的权限数组
+     * @return 授权结果
+     */
+    public JSONObject grantPermissions(Context context, String[] permissions) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            // 使用主应用的DeviceAdminReceiver，注意包名和类名的正确组合
+            ComponentName adminComponent = new ComponentName(
+                "com.syncsign.family.tablet",  // 主应用包名
+                "de.kolbasa.apkupdater.tools.DAReceiver"  // 主应用的DeviceAdminReceiver完整路径
+            );
+            
+            if (dpm == null) {
+                result.put("success", false);
+                result.put("error", "无法获取DevicePolicyManager");
+                return result;
+            }
+
+            // 验证设备管理员是否有效
+            if (!dpm.isAdminActive(adminComponent)) {
+                result.put("success", false);
+                result.put("error", "设备管理员未激活: " + adminComponent.flattenToString());
+                return result;
+            }
+
+            JSONObject permissionResults = new JSONObject();
+            boolean allGranted = true;
+            
+            for (String permission : permissions) {
+                try {
+                    Log.d(TAG, "正在授予权限: " + permission + " 给应用: " + context.getPackageName());
+                    // 先尝试直接授予权限
+                    dpm.setPermissionGrantState(
+                        adminComponent,
+                        context.getPackageName(),  // 为当前应用授权
+                        permission,
+                        DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                    );
+                    
+                    // 等待一下让系统处理权限变更
+                    Thread.sleep(100);
+                    
+                    // 检查权限是否真的被授予
+                    int permissionState = dpm.getPermissionGrantState(
+                        adminComponent,
+                        context.getPackageName(),
+                        permission
+                    );
+                    
+                    boolean isGranted = permissionState == DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED;
+                    
+                    // 双重检查：通过常规方式也确认一下
+                    boolean isGrantedCheck = context.checkSelfPermission(permission) 
+                                          == PackageManager.PERMISSION_GRANTED;
+                    
+                    // 只有两种检查都通过才认为真的授予了
+                    boolean finalGranted = isGranted && isGrantedCheck;
+                    
+                    permissionResults.put(permission, finalGranted);
+                    if (!finalGranted) {
+                        allGranted = false;
+                        Log.w(TAG, "权限 " + permission + " 可能未被成功授予: " + 
+                              "DPM状态=" + isGranted + ", 实际状态=" + isGrantedCheck);
+                    } else {
+                        Log.d(TAG, "权限 " + permission + " 已成功授予");
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "授予权限时出错: " + permission + ", " + e.getMessage());
+                    permissionResults.put(permission, false);
+                    allGranted = false;
+                }
+            }
+            
+            result.put("results", permissionResults);
+            result.put("success", allGranted);
+        } catch (Exception e) {
+            Log.e(TAG, "授予权限过程出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
         }
         
         return result;

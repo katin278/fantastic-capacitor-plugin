@@ -305,4 +305,38 @@ public class toolsPlugin extends Plugin {
             call.reject("连接Wi-Fi失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 通过DevicePolicyManager直接授予权限
+     */
+    @PluginMethod
+    public void grantPermissions(PluginCall call) {
+        JSArray permissionsArray = call.getArray("permissions");
+        if (permissionsArray == null) {
+            call.reject("permissions参数不能为空");
+            return;
+        }
+
+        try {
+            String[] permissions = new String[permissionsArray.length()];
+            for (int i = 0; i < permissionsArray.length(); i++) {
+                permissions[i] = permissionsArray.getString(i);
+            }
+
+            JSONObject grantResults = implementation.grantPermissions(getContext(), permissions);
+            
+            // 将JSONObject转换为JSObject
+            JSObject result = new JSObject();
+            Iterator<String> keys = grantResults.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                Object value = grantResults.get(key);
+                result.put(key, value);
+            }
+            
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("授予权限失败: " + e.getMessage());
+        }
+    }
 }

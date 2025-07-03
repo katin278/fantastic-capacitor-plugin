@@ -8,6 +8,26 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     return options;
   }
   
+  async grantPermissions(options: {
+    permissions: string[]
+  }): Promise<{
+    success: boolean;
+    error?: string;
+    results?: {
+      [permission: string]: boolean;
+    }
+  }> {
+    console.log('Web平台不支持直接授予Android权限', options);
+    return {
+      success: false,
+      error: 'Web平台不支持此操作',
+      results: options.permissions.reduce((acc, permission) => {
+        acc[permission] = false;
+        return acc;
+      }, {} as { [key: string]: boolean })
+    };
+  }
+  
   async checkPermissions(options: { 
     permissions: string[] 
   }): Promise<{ [permission: string]: boolean }> {

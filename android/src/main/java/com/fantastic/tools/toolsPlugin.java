@@ -37,6 +37,13 @@ import java.util.List;
                 Manifest.permission.ACCESS_WIFI_STATE,
                 Manifest.permission.CHANGE_WIFI_STATE
             }
+        ),
+        @Permission(
+            alias = "storage",
+            strings = {
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            }
         )
     }
 )
@@ -44,6 +51,7 @@ public class toolsPlugin extends Plugin {
 
     private tools implementation = new tools();
     private static final String TAG = "FantasticWifiTools";
+    private PluginCall sdCardCallbackCall;
 
     @PluginMethod
     public void checkPermissions(PluginCall call) {
@@ -429,6 +437,106 @@ public class toolsPlugin extends Plugin {
             call.resolve(result);
         } catch (Exception e) {
             call.reject("检测外接端口状态失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 开始监听TF卡槽状态
+     */
+    @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
+    public void startMonitoringSDCard(PluginCall call) {
+        try {
+            // 保存回调，用于后续事件通知
+            this.sdCardCallbackCall = call;
+            call.setKeepAlive(true);
+
+            boolean success = implementation.startMonitoringSDCard(getContext(), new tools.SDCardStateCallback() {
+                @Override
+                public void onSDCardStateChanged(JSONObject state) {
+                    if (sdCardCallbackCall != null) {
+                        try {
+                            JSObject result = new JSObject();
+                            Iterator<String> keys = state.keys();
+                            while (keys.hasNext()) {
+                                String key = keys.next();
+                                Object value = state.get(key);
+                                if (value instanceof String) {
+                                    result.put(key, (String) value);
+                                } else if (value instanceof Boolean) {
+                                    result.put(key, (Boolean) value);
+                                } else if (value instanceof Integer) {
+                                    result.put(key, (Integer) value);
+                                } else if (value instanceof Long) {
+                                    result.put(key, (Long) value);
+                                }
+                            }
+                            notifyListeners("sdCardStateChanged", result);
+                        } catch (Exception e) {
+                            Log.e(TAG, "发送TF卡状态变化通知时出错: " + e.getMessage());
+                        }
+                    }
+                }
+            });
+
+            JSObject result = new JSObject();
+            result.put("success", success);
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("启动TF卡状态监听失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 停止监听TF卡槽状态
+     */
+    @PluginMethod
+    public void stopMonitoringSDCard(PluginCall call) {
+        try {
+            implementation.stopMonitoringSDCard(getContext());
+            
+            // 清理回调
+            if (sdCardCallbackCall != null) {
+                sdCardCallbackCall.release(bridge);
+                sdCardCallbackCall = null;
+            }
+            
+            JSObject result = new JSObject();
+            result.put("success", true);
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("停止TF卡状态监听失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从TF卡中读取CSV文件并获取第一个可用的license
+     */
+    @PluginMethod
+    public void getAvailableLicenseFromSD(PluginCall call) {
+        String csvFileName = call.getString("fileName");
+        if (csvFileName == null || csvFileName.isEmpty()) {
+            call.reject("文件名不能为空");
+            return;
+        }
+
+        try {
+            JSONObject result = implementation.getAvailableLicenseFromSD(getContext(), csvFileName);
+            
+            // 将JSONObject转换为JSObject
+            JSObject jsResult = new JSObject();
+            jsResult.put("success", result.optBoolean("success", false));
+            
+            if (result.has("error")) {
+                jsResult.put("error", result.optString("error"));
+            }
+            
+            if (result.has("license")) {
+                jsResult.put("license", result.optString("license"));
+            }
+            
+            call.resolve(jsResult);
+        } catch (Exception e) {
+            call.reject("读取license失败: " + e.getMessage());
         }
     }
 }

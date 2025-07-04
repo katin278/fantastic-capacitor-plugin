@@ -1,3 +1,5 @@
+import type { PluginListenerHandle } from '@capacitor/core';
+
 export interface WifiNetwork {
   ssid: string;
   bssid: string;
@@ -47,6 +49,28 @@ export interface ExternalPortsStatus {
   usbPorts?: UsbPortInfo[];
   typeC?: TypeCPortInfo;
   tfCard?: TFCardInfo;
+}
+
+export interface SDCardState {
+  event?: 'mounted' | 'unmounted' | 'removed' | 'shared' | 'checking';
+  path?: string;
+  isAvailable: boolean;
+  hasCardInserted: boolean;
+  isMounted: boolean;
+  state: string;
+  totalSpace?: number;
+  availableSpace?: number;
+}
+
+export interface SDCardMonitoringResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface LicenseResult {
+  success: boolean;
+  license?: string;
+  error?: string;
 }
 
 export interface toolsPlugin {
@@ -195,4 +219,54 @@ export interface toolsPlugin {
    * // }
    */
   checkExternalPorts(): Promise<ExternalPortsStatus>;
+
+  /**
+   * 开始监听TF卡槽状态变化
+   * @returns 监听是否成功启动
+   */
+  startMonitoringSDCard(): Promise<SDCardMonitoringResult>;
+
+  /**
+   * 停止监听TF卡槽状态
+   * @returns 是否成功停止监听
+   */
+  stopMonitoringSDCard(): Promise<SDCardMonitoringResult>;
+
+  /**
+   * 添加TF卡状态变化的监听器
+   * @param eventName 事件名称 'sdCardStateChanged'
+   * @param callback 回调函数，接收状态变化信息
+   */
+  addListener(
+    eventName: 'sdCardStateChanged',
+    callback: (state: SDCardState) => void,
+  ): Promise<PluginListenerHandle>;
+
+  /**
+   * 从TF卡中读取CSV文件并获取第一个可用的license
+   * 
+   * CSV文件格式要求：
+   * - 第一列：license
+   * - 第二列：status（为空表示可用）
+   * 
+   * @param options.fileName CSV文件名（相对于TF卡根目录）
+   * @returns 包含可用license的结果对象
+   * @example
+   * const result = await tools.getAvailableLicenseFromSD({
+   *   fileName: 'licenses.csv'
+   * });
+   * // 成功返回：
+   * // {
+   * //   "success": true,
+   * //   "license": "XXXX-XXXX-XXXX-XXXX"
+   * // }
+   * // 失败返回：
+   * // {
+   * //   "success": false,
+   * //   "error": "错误信息"
+   * // }
+   */
+  getAvailableLicenseFromSD(options: {
+    fileName: string;
+  }): Promise<LicenseResult>;
 }

@@ -1,6 +1,13 @@
 import { WebPlugin } from '@capacitor/core';
 
-import type { toolsPlugin, WifiNetwork, WifiConnectionResult, ExternalPortsStatus } from './definitions';
+import type { 
+  toolsPlugin, 
+  WifiNetwork, 
+  WifiConnectionResult, 
+  ExternalPortsStatus, 
+  SDCardMonitoringResult,
+  LicenseResult
+} from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
   async echo(options: { value: string }): Promise<{ value: string }> {
@@ -109,5 +116,17 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
         state: 'unavailable'
       }
     };
+  }
+
+  async startMonitoringSDCard(): Promise<SDCardMonitoringResult> {
+    throw this.unimplemented('在Web环境中不支持TF卡监听功能');
+  }
+
+  async stopMonitoringSDCard(): Promise<SDCardMonitoringResult> {
+    throw this.unimplemented('在Web环境中不支持TF卡监听功能');
+  }
+
+  async getAvailableLicenseFromSD(_options: { fileName: string; }): Promise<LicenseResult> {
+    throw this.unimplemented('在Web环境中不支持读取TF卡文件');
   }
 }

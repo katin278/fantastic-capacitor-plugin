@@ -13,17 +13,21 @@ npx cap sync
 
 <docgen-index>
 
-* [`echo(...)`](#echo)
-* [`grantPermissions(...)`](#grantpermissions)
-* [`checkPermissions(...)`](#checkpermissions)
-* [`checkWifiPermissions()`](#checkwifipermissions)
-* [`requestWifiPermissions()`](#requestwifipermissions)
-* [`getWifiList()`](#getwifilist)
-* [`connectToOpenWifi(...)`](#connecttoopenwifi)
-* [`connectToPersonalWifi(...)`](#connecttopersonalwifi)
-* [`connectToEnterpriseWifi(...)`](#connecttoenterprisewifi)
-* [`checkExternalPorts()`](#checkexternalports)
-* [Interfaces](#interfaces)
+- [`echo(...)`](#echo)
+- [`grantPermissions(...)`](#grantpermissions)
+- [`checkPermissions(...)`](#checkpermissions)
+- [`checkWifiPermissions()`](#checkwifipermissions)
+- [`requestWifiPermissions()`](#requestwifipermissions)
+- [`getWifiList()`](#getwifilist)
+- [`connectToOpenWifi(...)`](#connecttoopenwifi)
+- [`connectToPersonalWifi(...)`](#connecttopersonalwifi)
+- [`connectToEnterpriseWifi(...)`](#connecttoenterprisewifi)
+- [`checkExternalPorts()`](#checkexternalports)
+- [`startMonitoringSDCard()`](#startmonitoringsdcard)
+- [`stopMonitoringSDCard()`](#stopmonitoringsdcard)
+- [`addListener('sdCardStateChanged', ...)`](#addlistenersdcardstatechanged-)
+- [`getAvailableLicenseFromSD(...)`](#getavailablelicensefromsd)
+- [Interfaces](#interfaces)
 
 </docgen-index>
 
@@ -42,8 +46,7 @@ echo(options: { value: string; }) => Promise<{ value: string; }>
 
 **Returns:** <code>Promise&lt;{ value: string; }&gt;</code>
 
---------------------
-
+---
 
 ### grantPermissions(...)
 
@@ -59,8 +62,7 @@ grantPermissions(options: { permissions: string[]; }) => Promise<{ success: bool
 
 **Returns:** <code>Promise&lt;{ success: boolean; error?: string; results?: { [permission: string]: boolean; }; }&gt;</code>
 
---------------------
-
+---
 
 ### checkPermissions(...)
 
@@ -76,8 +78,7 @@ checkPermissions(options: { permissions: string[]; }) => Promise<{ [permission: 
 
 **Returns:** <code>Promise&lt;{ [permission: string]: boolean; }&gt;</code>
 
---------------------
-
+---
 
 ### checkWifiPermissions()
 
@@ -89,8 +90,7 @@ checkWifiPermissions() => Promise<{ hasPermissions: boolean; }>
 
 **Returns:** <code>Promise&lt;{ hasPermissions: boolean; }&gt;</code>
 
---------------------
-
+---
 
 ### requestWifiPermissions()
 
@@ -102,8 +102,7 @@ requestWifiPermissions() => Promise<{ granted: boolean; locationPermission: bool
 
 **Returns:** <code>Promise&lt;{ granted: boolean; locationPermission: boolean; wifiPermission: boolean; }&gt;</code>
 
---------------------
-
+---
 
 ### getWifiList()
 
@@ -117,8 +116,7 @@ getWifiList() => Promise<{ wifiList: WifiNetwork[]; }>
 
 **Returns:** <code>Promise&lt;{ wifiList: WifiNetwork[]; }&gt;</code>
 
---------------------
-
+---
 
 ### connectToOpenWifi(...)
 
@@ -134,8 +132,7 @@ connectToOpenWifi(options: { ssid: string; }) => Promise<WifiConnectionResult>
 
 **Returns:** <code>Promise&lt;<a href="#wificonnectionresult">WifiConnectionResult</a>&gt;</code>
 
---------------------
-
+---
 
 ### connectToPersonalWifi(...)
 
@@ -151,8 +148,7 @@ connectToPersonalWifi(options: { ssid: string; password: string; }) => Promise<W
 
 **Returns:** <code>Promise&lt;<a href="#wificonnectionresult">WifiConnectionResult</a>&gt;</code>
 
---------------------
-
+---
 
 ### connectToEnterpriseWifi(...)
 
@@ -168,8 +164,7 @@ connectToEnterpriseWifi(options: { ssid: string; password: string; identity: str
 
 **Returns:** <code>Promise&lt;<a href="#wificonnectionresult">WifiConnectionResult</a>&gt;</code>
 
---------------------
-
+---
 
 ### checkExternalPorts()
 
@@ -180,17 +175,78 @@ checkExternalPorts() => Promise<ExternalPortsStatus>
 检测设备外接端口状态
 
 检测设备的USB端口（包括Type-C）和TF卡槽的状态，返回：
+
 - USB端口列表及其详细信息
 - Type-C端口状态（是否可用、是否充电、是否支持数据传输）
 - TF卡槽状态（是否可用、是否已挂载、存储空间信息）
 
 **Returns:** <code>Promise&lt;<a href="#externalportsstatus">ExternalPortsStatus</a>&gt;</code>
 
---------------------
+---
 
+### startMonitoringSDCard()
+
+```typescript
+startMonitoringSDCard() => Promise<SDCardMonitoringResult>
+```
+
+开始监听TF卡槽状态变化
+
+**Returns:** <code>Promise&lt;<a href="#sdcardmonitoringresult">SDCardMonitoringResult</a>&gt;</code>
+
+---
+
+### stopMonitoringSDCard()
+
+```typescript
+stopMonitoringSDCard() => Promise<SDCardMonitoringResult>
+```
+
+停止监听TF卡槽状态
+
+**Returns:** <code>Promise&lt;<a href="#sdcardmonitoringresult">SDCardMonitoringResult</a>&gt;</code>
+
+---
+
+### addListener('sdCardStateChanged', ...)
+
+```typescript
+addListener(eventName: 'sdCardStateChanged', callback: (state: SDCardState) => void) => Promise<PluginListenerHandle>
+```
+
+添加TF卡状态变化的监听器
+
+| Param           | Type                                                                    | Description                   |
+| --------------- | ----------------------------------------------------------------------- | ----------------------------- |
+| **`eventName`** | <code>'sdCardStateChanged'</code>                                       | 事件名称 'sdCardStateChanged' |
+| **`callback`**  | <code>(state: <a href="#sdcardstate">SDCardState</a>) =&gt; void</code> | 回调函数，接收状态变化信息    |
+
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
+
+---
+
+### getAvailableLicenseFromSD(...)
+
+```typescript
+getAvailableLicenseFromSD(options: { fileName: string; }) => Promise<LicenseResult>
+```
+
+从TF卡中读取CSV文件并获取第一个可用的license
+
+CSV文件格式要求：
+
+- 第一列：license
+- 第二列：status（为空表示可用）
+
+| Param         | Type                               |
+| ------------- | ---------------------------------- |
+| **`options`** | <code>{ fileName: string; }</code> |
+
+**Returns:** <code>Promise&lt;<a href="#licenseresult">LicenseResult</a>&gt;</code>
+
+---
 
 ### Interfaces
-
 
 #### WifiNetwork
 
@@ -205,14 +261,12 @@ checkExternalPorts() => Promise<ExternalPortsStatus>
 | **`securityType`**   | <code>string</code>  |
 | **`isEnterprise`**   | <code>boolean</code> |
 
-
 #### WifiConnectionResult
 
 | Prop          | Type                 |
 | ------------- | -------------------- |
 | **`success`** | <code>boolean</code> |
 | **`message`** | <code>string</code>  |
-
 
 #### ExternalPortsStatus
 
@@ -223,7 +277,6 @@ checkExternalPorts() => Promise<ExternalPortsStatus>
 | **`usbPorts`** | <code>UsbPortInfo[]</code>                              |
 | **`typeC`**    | <code><a href="#typecportinfo">TypeCPortInfo</a></code> |
 | **`tfCard`**   | <code><a href="#tfcardinfo">TFCardInfo</a></code>       |
-
 
 #### UsbPortInfo
 
@@ -239,7 +292,6 @@ checkExternalPorts() => Promise<ExternalPortsStatus>
 | **`deviceClass`**      | <code>string</code>  |
 | **`isConnected`**      | <code>boolean</code> |
 
-
 #### TypeCPortInfo
 
 | Prop                        | Type                 |
@@ -248,7 +300,6 @@ checkExternalPorts() => Promise<ExternalPortsStatus>
 | **`isCharging`**            | <code>boolean</code> |
 | **`isDataTransferEnabled`** | <code>boolean</code> |
 | **`error`**                 | <code>string</code>  |
-
 
 #### TFCardInfo
 
@@ -259,5 +310,39 @@ checkExternalPorts() => Promise<ExternalPortsStatus>
 | **`state`**          | <code>string</code>  |
 | **`totalSpace`**     | <code>number</code>  |
 | **`availableSpace`** | <code>number</code>  |
+
+#### SDCardMonitoringResult
+
+| Prop          | Type                 |
+| ------------- | -------------------- |
+| **`success`** | <code>boolean</code> |
+| **`error`**   | <code>string</code>  |
+
+#### PluginListenerHandle
+
+| Prop         | Type                                      |
+| ------------ | ----------------------------------------- |
+| **`remove`** | <code>() =&gt; Promise&lt;void&gt;</code> |
+
+#### SDCardState
+
+| Prop                  | Type                                                                         |
+| --------------------- | ---------------------------------------------------------------------------- |
+| **`event`**           | <code>'mounted' \| 'unmounted' \| 'removed' \| 'shared' \| 'checking'</code> |
+| **`path`**            | <code>string</code>                                                          |
+| **`isAvailable`**     | <code>boolean</code>                                                         |
+| **`hasCardInserted`** | <code>boolean</code>                                                         |
+| **`isMounted`**       | <code>boolean</code>                                                         |
+| **`state`**           | <code>string</code>                                                          |
+| **`totalSpace`**      | <code>number</code>                                                          |
+| **`availableSpace`**  | <code>number</code>                                                          |
+
+#### LicenseResult
+
+| Prop          | Type                 |
+| ------------- | -------------------- |
+| **`success`** | <code>boolean</code> |
+| **`license`** | <code>string</code>  |
+| **`error`**   | <code>string</code>  |
 
 </docgen-api>

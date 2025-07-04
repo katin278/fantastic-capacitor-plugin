@@ -41,9 +41,17 @@ import java.util.HashMap;
 import java.util.Map;
 import java.io.File;
 import java.lang.reflect.Method;
+import android.content.BroadcastReceiver;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 
 public class tools {
     private static final String TAG = "FantasticWifiTools";
+    private BroadcastReceiver sdCardReceiver;
+    private boolean isListeningToSdCard = false;
+    private SDCardStateCallback sdCardCallback;
 
     public String echo(String value) {
         Log.i("Echo", value);
@@ -787,5 +795,386 @@ public class tools {
         }
         
         return false;
+    }
+
+    /**
+     * TF卡状态变化的回调接口
+     */
+    public interface SDCardStateCallback {
+        void onSDCardStateChanged(JSONObject state);
+    }
+
+    /**
+     * 开始监听TF卡槽状态
+     * @param context Android上下文
+     * @param callback 状态变化回调
+     * @return 是否成功开始监听
+     */
+    public boolean startMonitoringSDCard(Context context, SDCardStateCallback callback) {
+        if (isListeningToSdCard) {
+            Log.w(TAG, "已经在监听TF卡状态");
+            return false;
+        }
+
+        try {
+            sdCardCallback = callback;
+            sdCardReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    String action = intent.getAction();
+                    Log.d(TAG, "收到存储设备广播: " + action);
+
+                    if (action == null) return;
+
+                    try {
+                        JSONObject state = new JSONObject();
+                        
+                        switch (action) {
+                            case Intent.ACTION_MEDIA_MOUNTED:
+                                // TF卡被插入并挂载
+                                state.put("event", "mounted");
+                                state.put("path", intent.getData().getPath());
+                                state.put("isAvailable", true);
+                                state.put("hasCardInserted", true);
+                                state.put("isMounted", true);
+                                state.put("state", "mounted");
+                                // 获取存储空间信息
+                                try {
+                                    File path = new File(intent.getData().getPath());
+                                    if (path.exists()) {
+                                        android.os.StatFs stat = new android.os.StatFs(path.getPath());
+                                        long blockSize = stat.getBlockSizeLong();
+                                        long totalBlocks = stat.getBlockCountLong();
+                                        long availableBlocks = stat.getAvailableBlocksLong();
+                                        state.put("totalSpace", totalBlocks * blockSize);
+                                        state.put("availableSpace", availableBlocks * blockSize);
+                                    }
+                                } catch (Exception e) {
+                                    Log.e(TAG, "获取TF卡空间信息失败: " + e.getMessage());
+                                }
+                                break;
+
+                            case Intent.ACTION_MEDIA_UNMOUNTED:
+                                // TF卡被卸载（仍在插着但未挂载）
+                                state.put("event", "unmounted");
+                                state.put("path", intent.getData().getPath());
+                                state.put("isAvailable", true);
+                                state.put("hasCardInserted", true);
+                                state.put("isMounted", false);
+                                state.put("state", "unmounted");
+                                break;
+
+                            case Intent.ACTION_MEDIA_REMOVED:
+                            case Intent.ACTION_MEDIA_BAD_REMOVAL:
+                                // TF卡被移除
+                                state.put("event", "removed");
+                                state.put("isAvailable", true);
+                                state.put("hasCardInserted", false);
+                                state.put("isMounted", false);
+                                state.put("state", "removed");
+                                break;
+
+                            case Intent.ACTION_MEDIA_SHARED:
+                                // TF卡被共享（通过USB共享给电脑）
+                                state.put("event", "shared");
+                                state.put("path", intent.getData().getPath());
+                                state.put("isAvailable", true);
+                                state.put("hasCardInserted", true);
+                                state.put("isMounted", false);
+                                state.put("state", "shared");
+                                break;
+
+                            case Intent.ACTION_MEDIA_CHECKING:
+                                // TF卡正在检查
+                                state.put("event", "checking");
+                                state.put("path", intent.getData().getPath());
+                                state.put("isAvailable", true);
+                                state.put("hasCardInserted", true);
+                                state.put("isMounted", false);
+                                state.put("state", "checking");
+                                break;
+                        }
+
+                        if (sdCardCallback != null) {
+                            sdCardCallback.onSDCardStateChanged(state);
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "处理TF卡状态变化时出错: " + e.getMessage());
+                    }
+                }
+            };
+
+            // 注册广播接收器
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(Intent.ACTION_MEDIA_MOUNTED);
+            filter.addAction(Intent.ACTION_MEDIA_UNMOUNTED);
+            filter.addAction(Intent.ACTION_MEDIA_REMOVED);
+            filter.addAction(Intent.ACTION_MEDIA_BAD_REMOVAL);
+            filter.addAction(Intent.ACTION_MEDIA_SHARED);
+            filter.addAction(Intent.ACTION_MEDIA_CHECKING);
+            filter.addDataScheme("file");
+            
+            context.registerReceiver(sdCardReceiver, filter);
+            isListeningToSdCard = true;
+            
+            // 立即检查当前状态并回调
+            if (sdCardCallback != null) {
+                JSONObject currentState = checkExternalPorts(context);
+                if (currentState.has("tfCard")) {
+                    sdCardCallback.onSDCardStateChanged(currentState.getJSONObject("tfCard"));
+                }
+            }
+            
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "启动TF卡状态监听时出错: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 停止监听TF卡槽状态
+     * @param context Android上下文
+     */
+    public void stopMonitoringSDCard(Context context) {
+        if (!isListeningToSdCard || sdCardReceiver == null) {
+            return;
+        }
+
+        try {
+            context.unregisterReceiver(sdCardReceiver);
+            sdCardReceiver = null;
+            sdCardCallback = null;
+            isListeningToSdCard = false;
+        } catch (Exception e) {
+            Log.e(TAG, "停止TF卡状态监听时出错: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从TF卡中读取CSV文件并获取第一个可用的license
+     * @param context Android上下文
+     * @param csvFileName CSV文件名（相对于TF卡根目录）
+     * @return 包含结果的JSON对象
+     */
+    public JSONObject getAvailableLicenseFromSD(Context context, String csvFileName) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            // 首先检查TF卡状态
+            JSONObject portStatus = checkExternalPorts(context);
+            JSONObject tfCardInfo = portStatus.getJSONObject("tfCard");
+            
+            if (!tfCardInfo.optBoolean("isAvailable", false) || 
+                !tfCardInfo.optBoolean("isMounted", false)) {
+                result.put("success", false);
+                result.put("error", "TF卡不可用或未挂载");
+                return result;
+            }
+
+            // 获取TF卡路径
+            String sdCardPath = null;
+            StorageManager storageManager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Android 11及以上使用StorageManager的新API
+                List<android.os.storage.StorageVolume> volumes = storageManager.getStorageVolumes();
+                for (android.os.storage.StorageVolume volume : volumes) {
+                    if (volume.isRemovable()) {
+                        File path = volume.getDirectory();
+                        if (path != null) {
+                            sdCardPath = path.getAbsolutePath();
+                            Log.d(TAG, "Android 11+ 找到TF卡路径: " + sdCardPath);
+                            break;
+                        }
+                    }
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                // Android 7-10 使用StorageVolume
+                List<android.os.storage.StorageVolume> volumes = storageManager.getStorageVolumes();
+                for (android.os.storage.StorageVolume volume : volumes) {
+                    if (volume.isRemovable()) {
+                        try {
+                            // 使用反射获取路径
+                            Method getPath = volume.getClass().getMethod("getPath");
+                            sdCardPath = (String) getPath.invoke(volume);
+                            Log.d(TAG, "Android 7-10 找到TF卡路径: " + sdCardPath);
+                            break;
+                        } catch (Exception e) {
+                            Log.e(TAG, "获取StorageVolume路径失败: " + e.getMessage());
+                        }
+                    }
+                }
+            }
+            
+            // 如果上述方法都失败，尝试使用Environment
+            if (sdCardPath == null) {
+                File[] externalDirs = context.getExternalFilesDirs(null);
+                for (File dir : externalDirs) {
+                    if (dir != null && Environment.isExternalStorageRemovable(dir)) {
+                        // 获取外部存储根目录
+                        String path = dir.getAbsolutePath();
+                        // 移除Android/data/包名部分，获取根目录
+                        int index = path.indexOf("/Android/data/");
+                        if (index > 0) {
+                            sdCardPath = path.substring(0, index);
+                            Log.d(TAG, "通过Environment找到TF卡路径: " + sdCardPath);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // 如果还是找不到，尝试常见路径
+            if (sdCardPath == null) {
+                String[] commonPaths = {
+                    "/storage/sdcard1",
+                    "/storage/extSdCard",
+                    "/storage/external_SD",
+                    "/storage/SD",
+                    "/mnt/sdcard1",
+                    "/mnt/extSdCard",
+                    "/storage/0000-0000", // 通用格式的TF卡路径
+                    "/storage/emulated/0/external_sd"
+                };
+                
+                for (String path : commonPaths) {
+                    File potentialPath = new File(path);
+                    if (potentialPath.exists() && potentialPath.canRead()) {
+                        sdCardPath = path;
+                        Log.d(TAG, "通过常见路径找到TF卡: " + sdCardPath);
+                        break;
+                    }
+                }
+            }
+            
+            if (sdCardPath == null) {
+                result.put("success", false);
+                result.put("error", "无法获取TF卡路径");
+                return result;
+            }
+
+            // 构建CSV文件完整路径
+            File csvFile = new File(sdCardPath, csvFileName);
+            Log.d(TAG, "尝试访问CSV文件: " + csvFile.getAbsolutePath());
+            Log.d(TAG, "文件是否存在: " + csvFile.exists());
+            Log.d(TAG, "文件是否可读: " + csvFile.canRead());
+            
+            if (!csvFile.exists()) {
+                // 如果在根目录找不到，尝试在Download文件夹中查找
+                csvFile = new File(sdCardPath + "/Download", csvFileName);
+                Log.d(TAG, "尝试在Download文件夹中查找: " + csvFile.getAbsolutePath());
+                Log.d(TAG, "文件是否存在: " + csvFile.exists());
+                Log.d(TAG, "文件是否可读: " + csvFile.canRead());
+            }
+
+            // 分别检查文件存在性和读取权限
+            if (!csvFile.exists()) {
+                result.put("success", false);
+                result.put("error", "CSV文件不存在，已尝试以下路径：\n" + 
+                          "1. " + new File(sdCardPath, csvFileName).getAbsolutePath() + "\n" +
+                          "2. " + new File(sdCardPath + "/Download", csvFileName).getAbsolutePath());
+                return result;
+            }
+
+            if (!csvFile.canRead()) {
+                result.put("success", false);
+                result.put("error", "无法读取CSV文件（权限不足）: " + csvFile.getAbsolutePath() + 
+                          "\n文件权限: " + getFilePermissions(csvFile));
+                return result;
+            }
+
+            // 读取CSV文件
+            String availableLicense = null;
+            BufferedReader reader = null;
+            try {
+                reader = new BufferedReader(new FileReader(csvFile));
+                String line;
+                int lineNumber = 0;
+                while ((line = reader.readLine()) != null) {
+                    lineNumber++;
+                    Log.d(TAG, "读取第 " + lineNumber + " 行: " + line);
+                    
+                    // 跳过空行
+                    if (line.trim().isEmpty()) {
+                        continue;
+                    }
+                    
+                    // 分割CSV行
+                    String[] parts = line.split(",");
+                    if (parts.length > 0) {
+                        String license = parts[0].trim();
+                        // 检查license是否有效（不为空且长度合理）
+                        if (!license.isEmpty() && license.length() >= 4) {
+                            // 如果只有一列，或第二列为空，则该license可用
+                            if (parts.length == 1 || parts[1].trim().isEmpty()) {
+                                availableLicense = license;
+                                Log.d(TAG, "找到可用的license: " + license);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "读取CSV文件时出错: " + e.getMessage());
+                result.put("success", false);
+                result.put("error", "读取CSV文件时出错: " + e.getMessage());
+                return result;
+            } finally {
+                if (reader != null) {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        Log.e(TAG, "关闭CSV文件时出错: " + e.getMessage());
+                    }
+                }
+            }
+
+            if (availableLicense != null) {
+                result.put("success", true);
+                result.put("license", availableLicense);
+            } else {
+                result.put("success", false);
+                result.put("error", "未找到可用的license");
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "读取CSV文件时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", "读取CSV文件时出错: " + e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        }
+        
+        return result;
+    }
+
+    /**
+     * 获取文件权限信息
+     * @param file 要检查的文件
+     * @return 权限信息字符串
+     */
+    private String getFilePermissions(File file) {
+        StringBuilder permissions = new StringBuilder();
+        permissions.append("可读: ").append(file.canRead());
+        permissions.append(", 可写: ").append(file.canWrite());
+        permissions.append(", 可执行: ").append(file.canExecute());
+        
+        try {
+            String[] command = {"ls", "-l", file.getAbsolutePath()};
+            Process process = Runtime.getRuntime().exec(command);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line = reader.readLine();
+            if (line != null) {
+                permissions.append("\n系统权限: ").append(line);
+            }
+            reader.close();
+        } catch (Exception e) {
+            Log.e(TAG, "获取文件权限详情失败: " + e.getMessage());
+        }
+        
+        return permissions.toString();
     }
 }

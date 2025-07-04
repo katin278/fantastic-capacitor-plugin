@@ -14,6 +14,41 @@ export interface WifiConnectionResult {
   message?: string;
 }
 
+export interface UsbPortInfo {
+  deviceId: number;
+  deviceName: string;
+  manufacturerName?: string;
+  productName?: string;
+  interfaceCount: number;
+  vendorId: number;
+  productId: number;
+  deviceClass: string;
+  isConnected: boolean;
+}
+
+export interface TypeCPortInfo {
+  isAvailable: boolean;
+  isCharging?: boolean;
+  isDataTransferEnabled?: boolean;
+  error?: string;
+}
+
+export interface TFCardInfo {
+  isAvailable: boolean;
+  isMounted: boolean;
+  state: string;
+  totalSpace?: number;
+  availableSpace?: number;
+}
+
+export interface ExternalPortsStatus {
+  success: boolean;
+  error?: string;
+  usbPorts?: UsbPortInfo[];
+  typeC?: TypeCPortInfo;
+  tfCard?: TFCardInfo;
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -119,4 +154,45 @@ export interface toolsPlugin {
     password: string;
     identity: string;
   }): Promise<WifiConnectionResult>;
+
+  /**
+   * 检测设备外接端口状态
+   * 
+   * 检测设备的USB端口（包括Type-C）和TF卡槽的状态，返回：
+   * - USB端口列表及其详细信息
+   * - Type-C端口状态（是否可用、是否充电、是否支持数据传输）
+   * - TF卡槽状态（是否可用、是否已挂载、存储空间信息）
+   * 
+   * @returns 外接端口状态信息
+   * @example
+   * const result = await tools.checkExternalPorts();
+   * // 返回结果示例：
+   * // {
+   * //   "success": true,
+   * //   "usbPorts": [{
+   * //     "deviceId": 1,
+   * //     "deviceName": "USB Device",
+   * //     "manufacturerName": "Company",
+   * //     "productName": "Product",
+   * //     "interfaceCount": 1,
+   * //     "vendorId": 1234,
+   * //     "productId": 5678,
+   * //     "deviceClass": "大容量存储设备",
+   * //     "isConnected": true
+   * //   }],
+   * //   "typeC": {
+   * //     "isAvailable": true,
+   * //     "isCharging": true,
+   * //     "isDataTransferEnabled": true
+   * //   },
+   * //   "tfCard": {
+   * //     "isAvailable": true,
+   * //     "isMounted": true,
+   * //     "state": "mounted",
+   * //     "totalSpace": 32000000000,
+   * //     "availableSpace": 16000000000
+   * //   }
+   * // }
+   */
+  checkExternalPorts(): Promise<ExternalPortsStatus>;
 }

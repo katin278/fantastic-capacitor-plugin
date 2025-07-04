@@ -18,6 +18,7 @@ import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,20 @@ import java.util.concurrent.TimeUnit;
 
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
+import android.hardware.usb.UsbConstants;
+import android.os.Environment;
+import android.os.StatFs;
+import android.content.IntentFilter;
+import android.content.Intent;
+import android.os.BatteryManager;
+import android.os.storage.StorageManager;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.io.File;
+import java.lang.reflect.Method;
 
 public class tools {
     private static final String TAG = "FantasticWifiTools";
@@ -525,5 +540,252 @@ public class tools {
         }
         
         return result;
+    }
+
+    /**
+     * 检测设备外接端口状态
+     * @param context Android上下文
+     * @return 端口状态信息的JSON对象
+     */
+    public JSONObject checkExternalPorts(Context context) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            // 检测USB端口状态
+            UsbManager usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
+            HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
+            
+            JSONArray usbPorts = new JSONArray();
+            for (Map.Entry<String, UsbDevice> entry : deviceList.entrySet()) {
+                UsbDevice device = entry.getValue();
+                JSONObject portInfo = new JSONObject();
+                portInfo.put("deviceId", device.getDeviceId());
+                portInfo.put("deviceName", device.getDeviceName());
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    portInfo.put("manufacturerName", device.getManufacturerName());
+                    portInfo.put("productName", device.getProductName());
+                }
+                portInfo.put("interfaceCount", device.getInterfaceCount());
+                portInfo.put("vendorId", device.getVendorId());
+                portInfo.put("productId", device.getProductId());
+                portInfo.put("deviceClass", getUsbDeviceClass(device.getDeviceClass()));
+                portInfo.put("isConnected", true);
+                usbPorts.put(portInfo);
+            }
+            result.put("usbPorts", usbPorts);
+            
+            // 检测Type-C端口状态（Android 6.0及以上）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                JSONObject typeCInfo = new JSONObject();
+                try {
+                    typeCInfo.put("isAvailable", true);
+                    typeCInfo.put("isCharging", isUsbCharging(context));
+                    // 在Android 10及以上版本中，使用UsbManager.FUNCTION_MTP已被弃用
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        typeCInfo.put("isDataTransferEnabled", true); // 简化处理
+                    } else {
+                        typeCInfo.put("isDataTransferEnabled", true); // 默认支持数据传输
+                    }
+                } catch (Exception e) {
+                    typeCInfo.put("isAvailable", false);
+                    typeCInfo.put("error", e.getMessage());
+                }
+                result.put("typeC", typeCInfo);
+            }
+            
+            // 检测TF卡槽状态
+            JSONObject tfCardInfo = new JSONObject();
+            
+            try {
+                StorageManager storageManager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
+                boolean hasCardSlot = false;  // 是否有TF卡槽
+                boolean cardInserted = false; // 是否插入了卡
+                
+                // 方法1：通过StorageVolume检测
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    List<android.os.storage.StorageVolume> volumes = storageManager.getStorageVolumes();
+                    for (android.os.storage.StorageVolume volume : volumes) {
+                        if (volume.isRemovable()) {
+                            hasCardSlot = true;
+                            break;
+                        }
+                    }
+                }
+                
+                // 方法2：通过Environment检测外部存储路径
+                File[] externalStorageDirs = context.getExternalFilesDirs(null);
+                if (!hasCardSlot && externalStorageDirs != null) {
+                    for (File dir : externalStorageDirs) {
+                        if (dir != null && Environment.isExternalStorageRemovable(dir)) {
+                            hasCardSlot = true;
+                            break;
+                        }
+                    }
+                }
+                
+                // 方法3：检查常见的SD卡路径
+                String[] sdCardPaths = {
+                    "/storage/sdcard1",
+                    "/storage/extSdCard",
+                    "/storage/external_SD",
+                    "/storage/SD",
+                    "/mnt/sdcard1",
+                    "/mnt/extSdCard",
+                    "/mnt/external_SD",
+                    "/mnt/media_rw/sdcard1"
+                };
+                
+                for (String path : sdCardPaths) {
+                    File potentialPath = new File(path);
+                    if (potentialPath.exists() || potentialPath.canRead()) {
+                        hasCardSlot = true;
+                        break;
+                    }
+                }
+                
+                // 设置基本状态
+                tfCardInfo.put("isAvailable", hasCardSlot);
+                
+                // 如果有卡槽，检查卡的状态
+                if (hasCardSlot) {
+                    String state = "unknown";
+                    boolean isMounted = false;
+                    
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        List<android.os.storage.StorageVolume> volumes = storageManager.getStorageVolumes();
+                        for (android.os.storage.StorageVolume volume : volumes) {
+                            if (volume.isRemovable()) {
+                                state = volume.getState();
+                                cardInserted = !Environment.MEDIA_UNMOUNTED.equals(state) && 
+                                             !Environment.MEDIA_REMOVED.equals(state);
+                                isMounted = Environment.MEDIA_MOUNTED.equals(state);
+                                
+                                if (isMounted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                    File path = volume.getDirectory();
+                                    if (path != null && path.exists()) {
+                                        android.os.StatFs stat = new android.os.StatFs(path.getPath());
+                                        long blockSize = stat.getBlockSizeLong();
+                                        long totalBlocks = stat.getBlockCountLong();
+                                        long availableBlocks = stat.getAvailableBlocksLong();
+                                        
+                                        tfCardInfo.put("totalSpace", totalBlocks * blockSize);
+                                        tfCardInfo.put("availableSpace", availableBlocks * blockSize);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    } else {
+                        // 对于旧版本Android，检查是否可以访问SD卡路径
+                        for (String path : sdCardPaths) {
+                            File sdCard = new File(path);
+                            if (sdCard.exists()) {
+                                cardInserted = true;
+                                isMounted = sdCard.canRead() && sdCard.canWrite();
+                                state = isMounted ? "mounted" : "unmounted";
+                                
+                                if (isMounted) {
+                                    android.os.StatFs stat = new android.os.StatFs(path);
+                                    long blockSize = stat.getBlockSizeLong();
+                                    long totalBlocks = stat.getBlockCountLong();
+                                    long availableBlocks = stat.getAvailableBlocksLong();
+                                    
+                                    tfCardInfo.put("totalSpace", totalBlocks * blockSize);
+                                    tfCardInfo.put("availableSpace", availableBlocks * blockSize);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    
+                    tfCardInfo.put("hasCardInserted", cardInserted);
+                    tfCardInfo.put("isMounted", isMounted);
+                    tfCardInfo.put("state", state);
+                } else {
+                    tfCardInfo.put("hasCardInserted", false);
+                    tfCardInfo.put("isMounted", false);
+                    tfCardInfo.put("state", "no_card_slot");
+                }
+                
+            } catch (Exception e) {
+                Log.e(TAG, "检测TF卡时出错: " + e.getMessage());
+                tfCardInfo.put("isAvailable", false);
+                tfCardInfo.put("hasCardInserted", false);
+                tfCardInfo.put("isMounted", false);
+                tfCardInfo.put("state", "error");
+                tfCardInfo.put("error", e.getMessage());
+            }
+            
+            result.put("tfCard", tfCardInfo);
+            result.put("success", true);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "检测外接端口状态时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 获取USB设备类型的描述
+     */
+    private String getUsbDeviceClass(int deviceClass) {
+        switch (deviceClass) {
+            case UsbConstants.USB_CLASS_APP_SPEC:
+                return "应用程序特定";
+            case UsbConstants.USB_CLASS_AUDIO:
+                return "音频设备";
+            case UsbConstants.USB_CLASS_CDC_DATA:
+                return "CDC数据设备";
+            case UsbConstants.USB_CLASS_COMM:
+                return "通信设备";
+            case UsbConstants.USB_CLASS_CONTENT_SEC:
+                return "内容安全设备";
+            case UsbConstants.USB_CLASS_HID:
+                return "人机接口设备";
+            case UsbConstants.USB_CLASS_HUB:
+                return "USB集线器";
+            case UsbConstants.USB_CLASS_MASS_STORAGE:
+                return "大容量存储设备";
+            case UsbConstants.USB_CLASS_MISC:
+                return "其他设备";
+            case UsbConstants.USB_CLASS_PER_INTERFACE:
+                return "每个接口";
+            case UsbConstants.USB_CLASS_PHYSICA:
+                return "物理设备";
+            case UsbConstants.USB_CLASS_PRINTER:
+                return "打印机";
+            case UsbConstants.USB_CLASS_STILL_IMAGE:
+                return "图像设备";
+            case UsbConstants.USB_CLASS_VENDOR_SPEC:
+                return "厂商特定设备";
+            case UsbConstants.USB_CLASS_VIDEO:
+                return "视频设备";
+            case UsbConstants.USB_CLASS_WIRELESS_CONTROLLER:
+                return "无线控制器";
+            default:
+                return "未知设备类型";
+        }
+    }
+    
+    /**
+     * 检查设备是否正在通过USB充电
+     */
+    private boolean isUsbCharging(Context context) {
+        IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        Intent batteryStatus = context.registerReceiver(null, filter);
+        
+        if (batteryStatus != null) {
+            int chargePlug = batteryStatus.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
+            return chargePlug == BatteryManager.BATTERY_PLUGGED_USB;
+        }
+        
+        return false;
     }
 }

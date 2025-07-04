@@ -16,6 +16,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import java.util.Iterator;
 import java.util.List;
@@ -337,6 +338,97 @@ public class toolsPlugin extends Plugin {
             call.resolve(result);
         } catch (Exception e) {
             call.reject("授予权限失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 检测设备外接端口状态
+     */
+    @PluginMethod
+    public void checkExternalPorts(PluginCall call) {
+        try {
+            JSONObject portStatus = implementation.checkExternalPorts(getContext());
+            
+            // 将JSONObject转换为JSObject
+            JSObject result = new JSObject();
+            result.put("success", portStatus.optBoolean("success", false));
+            
+            if (portStatus.has("error")) {
+                result.put("error", portStatus.optString("error"));
+            }
+            
+            // 处理USB端口信息
+            if (portStatus.has("usbPorts")) {
+                JSONArray usbPorts = portStatus.getJSONArray("usbPorts");
+                JSArray usbPortsArray = new JSArray();
+                
+                for (int i = 0; i < usbPorts.length(); i++) {
+                    JSONObject portInfo = usbPorts.getJSONObject(i);
+                    JSObject port = new JSObject();
+                    
+                    // 复制所有端口信息
+                    Iterator<String> keys = portInfo.keys();
+                    while (keys.hasNext()) {
+                        String key = keys.next();
+                        Object value = portInfo.get(key);
+                        if (value instanceof String) {
+                            port.put(key, (String) value);
+                        } else if (value instanceof Integer) {
+                            port.put(key, (Integer) value);
+                        } else if (value instanceof Boolean) {
+                            port.put(key, (Boolean) value);
+                        }
+                    }
+                    
+                    usbPortsArray.put(port);
+                }
+                
+                result.put("usbPorts", usbPortsArray);
+            }
+            
+            // 处理Type-C端口信息
+            if (portStatus.has("typeC")) {
+                JSONObject typeCInfo = portStatus.getJSONObject("typeC");
+                JSObject typeC = new JSObject();
+                
+                Iterator<String> keys = typeCInfo.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    Object value = typeCInfo.get(key);
+                    if (value instanceof String) {
+                        typeC.put(key, (String) value);
+                    } else if (value instanceof Boolean) {
+                        typeC.put(key, (Boolean) value);
+                    }
+                }
+                
+                result.put("typeC", typeC);
+            }
+            
+            // 处理TF卡信息
+            if (portStatus.has("tfCard")) {
+                JSONObject tfCardInfo = portStatus.getJSONObject("tfCard");
+                JSObject tfCard = new JSObject();
+                
+                Iterator<String> keys = tfCardInfo.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    Object value = tfCardInfo.get(key);
+                    if (value instanceof String) {
+                        tfCard.put(key, (String) value);
+                    } else if (value instanceof Boolean) {
+                        tfCard.put(key, (Boolean) value);
+                    } else if (value instanceof Long) {
+                        tfCard.put(key, (Long) value);
+                    }
+                }
+                
+                result.put("tfCard", tfCard);
+            }
+            
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("检测外接端口状态失败: " + e.getMessage());
         }
     }
 }

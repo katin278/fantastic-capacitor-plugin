@@ -1,6 +1,6 @@
 import { WebPlugin } from '@capacitor/core';
 
-import type { toolsPlugin, WifiNetwork, WifiConnectionResult } from './definitions';
+import type { toolsPlugin, WifiNetwork, WifiConnectionResult, ExternalPortsStatus } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
   async echo(options: { value: string }): Promise<{ value: string }> {
@@ -89,6 +89,25 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     return {
       success: false,
       message: 'Web平台不支持Wi-Fi连接操作'
+    };
+  }
+
+  async checkExternalPorts(): Promise<ExternalPortsStatus> {
+    console.log('Web平台不支持检测外接端口状态');
+    return {
+      success: false,
+      error: 'Web平台不支持检测外接端口状态',
+      usbPorts: [],
+      typeC: {
+        isAvailable: false,
+        isCharging: false,
+        isDataTransferEnabled: false
+      },
+      tfCard: {
+        isAvailable: false,
+        isMounted: false,
+        state: 'unavailable'
+      }
     };
   }
 }

@@ -22,6 +22,7 @@ npx cap sync
 * [`connectToOpenWifi(...)`](#connecttoopenwifi)
 * [`connectToPersonalWifi(...)`](#connecttopersonalwifi)
 * [`connectToEnterpriseWifi(...)`](#connecttoenterprisewifi)
+* [`checkExternalPorts()`](#checkexternalports)
 * [Interfaces](#interfaces)
 
 </docgen-index>
@@ -170,6 +171,24 @@ connectToEnterpriseWifi(options: { ssid: string; password: string; identity: str
 --------------------
 
 
+### checkExternalPorts()
+
+```typescript
+checkExternalPorts() => Promise<ExternalPortsStatus>
+```
+
+检测设备外接端口状态
+
+检测设备的USB端口（包括Type-C）和TF卡槽的状态，返回：
+- USB端口列表及其详细信息
+- Type-C端口状态（是否可用、是否充电、是否支持数据传输）
+- TF卡槽状态（是否可用、是否已挂载、存储空间信息）
+
+**Returns:** <code>Promise&lt;<a href="#externalportsstatus">ExternalPortsStatus</a>&gt;</code>
+
+--------------------
+
+
 ### Interfaces
 
 
@@ -193,5 +212,52 @@ connectToEnterpriseWifi(options: { ssid: string; password: string; identity: str
 | ------------- | -------------------- |
 | **`success`** | <code>boolean</code> |
 | **`message`** | <code>string</code>  |
+
+
+#### ExternalPortsStatus
+
+| Prop           | Type                                                    |
+| -------------- | ------------------------------------------------------- |
+| **`success`**  | <code>boolean</code>                                    |
+| **`error`**    | <code>string</code>                                     |
+| **`usbPorts`** | <code>UsbPortInfo[]</code>                              |
+| **`typeC`**    | <code><a href="#typecportinfo">TypeCPortInfo</a></code> |
+| **`tfCard`**   | <code><a href="#tfcardinfo">TFCardInfo</a></code>       |
+
+
+#### UsbPortInfo
+
+| Prop                   | Type                 |
+| ---------------------- | -------------------- |
+| **`deviceId`**         | <code>number</code>  |
+| **`deviceName`**       | <code>string</code>  |
+| **`manufacturerName`** | <code>string</code>  |
+| **`productName`**      | <code>string</code>  |
+| **`interfaceCount`**   | <code>number</code>  |
+| **`vendorId`**         | <code>number</code>  |
+| **`productId`**        | <code>number</code>  |
+| **`deviceClass`**      | <code>string</code>  |
+| **`isConnected`**      | <code>boolean</code> |
+
+
+#### TypeCPortInfo
+
+| Prop                        | Type                 |
+| --------------------------- | -------------------- |
+| **`isAvailable`**           | <code>boolean</code> |
+| **`isCharging`**            | <code>boolean</code> |
+| **`isDataTransferEnabled`** | <code>boolean</code> |
+| **`error`**                 | <code>string</code>  |
+
+
+#### TFCardInfo
+
+| Prop                 | Type                 |
+| -------------------- | -------------------- |
+| **`isAvailable`**    | <code>boolean</code> |
+| **`isMounted`**      | <code>boolean</code> |
+| **`state`**          | <code>string</code>  |
+| **`totalSpace`**     | <code>number</code>  |
+| **`availableSpace`** | <code>number</code>  |
 
 </docgen-api>

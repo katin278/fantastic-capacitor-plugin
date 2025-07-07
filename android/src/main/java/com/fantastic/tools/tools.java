@@ -56,6 +56,9 @@ import java.security.cert.X509Certificate;
 import java.io.ByteArrayInputStream;
 import java.util.Formatter;
 
+import android.webkit.WebView;
+import android.webkit.WebSettings;
+
 public class tools {
     private static final String TAG = "FantasticWifiTools";
     private BroadcastReceiver sdCardReceiver;
@@ -1460,5 +1463,186 @@ public class tools {
             Log.e(TAG, "检查网络时间可用性时出错: " + e.getMessage());
         }
         return false;
+    }
+
+    /**
+     * 检查WebView版本信息
+     * @param context Android上下文
+     * @return 包含WebView信息的JSON对象
+     */
+    public JSONObject checkWebViewInfo(Context context) {
+        JSONObject result = new JSONObject();
+        final WebView[] webViewHolder = new WebView[1];
+        
+        try {
+            // 获取WebView包信息
+            PackageInfo webViewPackageInfo = null;
+            String webViewPackageName = null;
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // Android 8.0及以上使用WebView.getCurrentWebViewPackage()
+                try {
+                    webViewPackageInfo = WebView.getCurrentWebViewPackage();
+                    if (webViewPackageInfo != null) {
+                        webViewPackageName = webViewPackageInfo.packageName;
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "获取WebView包信息失败: " + e.getMessage());
+                }
+            }
+            
+            // 如果上述方法失败，尝试获取默认WebView包信息
+            if (webViewPackageInfo == null) {
+                String[] webViewPackages = {
+                    "com.google.android.webview",
+                    "com.android.webview",
+                    "com.android.chrome",
+                    "com.chrome.beta",
+                    "com.chrome.dev",
+                    "com.chrome.canary"
+                };
+                
+                PackageManager pm = context.getPackageManager();
+                for (String packageName : webViewPackages) {
+                    try {
+                        webViewPackageInfo = pm.getPackageInfo(packageName, 0);
+                        webViewPackageName = packageName;
+                        break;
+                    } catch (PackageManager.NameNotFoundException e) {
+                        // 继续检查下一个包
+                        continue;
+                    }
+                }
+            }
+            
+            // 在主线程中创建WebView实例
+            final String[] userAgent = {null};
+            final WebSettings[] webSettings = {null};
+            
+            if (context instanceof android.app.Activity) {
+                android.app.Activity activity = (android.app.Activity) context;
+                activity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            webViewHolder[0] = new WebView(context);
+                            webSettings[0] = webViewHolder[0].getSettings();
+                            userAgent[0] = webSettings[0].getUserAgentString();
+                        } catch (Exception e) {
+                            Log.e(TAG, "创建WebView失败: " + e.getMessage());
+                        }
+                    }
+                });
+                
+                // 等待主线程操作完成
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Log.e(TAG, "等待WebView创建被中断: " + e.getMessage());
+                }
+            }
+            
+            // 构建返回结果
+            result.put("success", true);
+            
+            if (webViewPackageInfo != null) {
+                result.put("packageName", webViewPackageName);
+                result.put("versionName", webViewPackageInfo.versionName);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    result.put("versionCode", webViewPackageInfo.getLongVersionCode());
+                } else {
+                    result.put("versionCode", (long) webViewPackageInfo.versionCode);
+                }
+                
+                // 获取更多包信息
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    result.put("firstInstallTime", webViewPackageInfo.firstInstallTime);
+                    result.put("lastUpdateTime", webViewPackageInfo.lastUpdateTime);
+                }
+            }
+            
+            // 添加WebView设置信息
+            if (webSettings[0] != null) {
+                JSONObject settings = new JSONObject();
+                settings.put("userAgent", userAgent[0]);
+                settings.put("javaScriptEnabled", webSettings[0].getJavaScriptEnabled());
+                settings.put("databaseEnabled", webSettings[0].getDatabaseEnabled());
+                settings.put("domStorageEnabled", webSettings[0].getDomStorageEnabled());
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    settings.put("safeBrowsingEnabled", webSettings[0].getSafeBrowsingEnabled());
+                }
+                result.put("settings", settings);
+            }
+            
+            // 添加系统信息
+            result.put("androidVersion", Build.VERSION.RELEASE);
+            result.put("androidSDK", Build.VERSION.SDK_INT);
+            
+            // 检查WebView是否可用
+            boolean isWebViewEnabled = isWebViewEnabled(context);
+            result.put("isEnabled", isWebViewEnabled);
+            
+            // 获取WebView数据目录
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                String dataDir = context.getDataDir().getAbsolutePath() + "/app_webview";
+                result.put("dataDirectory", dataDir);
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "检查WebView信息时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        } finally {
+            // 确保在主线程中销毁WebView
+            if (webViewHolder[0] != null && context instanceof android.app.Activity) {
+                final WebView finalWebView = webViewHolder[0];
+                ((android.app.Activity) context).runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            finalWebView.destroy();
+                        } catch (Exception e) {
+                            Log.e(TAG, "销毁WebView失败: " + e.getMessage());
+                        }
+                    }
+                });
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 检查WebView是否可用
+     * @param context Android上下文
+     * @return WebView是否可用
+     */
+    private boolean isWebViewEnabled(Context context) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                PackageInfo webViewPackage = WebView.getCurrentWebViewPackage();
+                return webViewPackage != null;
+            } else {
+                PackageManager pm = context.getPackageManager();
+                try {
+                    pm.getPackageInfo("com.google.android.webview", 0);
+                    return true;
+                } catch (PackageManager.NameNotFoundException e1) {
+                    try {
+                        pm.getPackageInfo("com.android.webview", 0);
+                        return true;
+                    } catch (PackageManager.NameNotFoundException e2) {
+                        return false;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "检查WebView可用性时出错: " + e.getMessage());
+            return false;
+        }
     }
 }

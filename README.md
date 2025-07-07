@@ -29,6 +29,7 @@ npx cap sync
 * [`getAvailableLicenseFromSD(...)`](#getavailablelicensefromsd)
 * [`checkAppSignature()`](#checkappsignature)
 * [`checkDeviceDateTime()`](#checkdevicedatetime)
+* [`checkWebViewInfo()`](#checkwebviewinfo)
 * [Interfaces](#interfaces)
 
 </docgen-index>
@@ -290,6 +291,17 @@ checkDeviceDateTime() => Promise<DeviceDateTimeResult>
 --------------------
 
 
+### checkWebViewInfo()
+
+```typescript
+checkWebViewInfo() => Promise<WebViewInfoResult>
+```
+
+**Returns:** <code>Promise&lt;<a href="#webviewinforesult">WebViewInfoResult</a>&gt;</code>
+
+--------------------
+
+
 ### Interfaces
 
 
@@ -448,6 +460,35 @@ checkDeviceDateTime() => Promise<DeviceDateTimeResult>
 | **`autoTimeZoneEnabled`** | <code>boolean</code> | 系统是否启用了自动时区设置 true: 系统会根据位置自动设置时区 false: 用户手动设置时区                               |
 | **`isTimeAccurate`**      | <code>boolean</code> | 设备时间是否准确 true: 时间被认为是准确的 false: 时间可能不准确 Android: 基于自动时间设置状态 Web: 总是返回true       |
 | **`timeOffsetFromNTP`**   | <code>number</code>  | 与网络时间服务器的时间偏差（毫秒） 0: 表示时间准确或无法获取偏差 正数: 表示设备时间快于标准时间 负数: 表示设备时间慢于标准时间 Web平台始终返回0 |
+
+
+#### WebViewInfoResult
+
+| Prop                   | Type                                                        |
+| ---------------------- | ----------------------------------------------------------- |
+| **`success`**          | <code>boolean</code>                                        |
+| **`error`**            | <code>string</code>                                         |
+| **`packageName`**      | <code>string</code>                                         |
+| **`versionName`**      | <code>string</code>                                         |
+| **`versionCode`**      | <code>number</code>                                         |
+| **`firstInstallTime`** | <code>number</code>                                         |
+| **`lastUpdateTime`**   | <code>number</code>                                         |
+| **`settings`**         | <code><a href="#webviewsettings">WebViewSettings</a></code> |
+| **`androidVersion`**   | <code>string</code>                                         |
+| **`androidSDK`**       | <code>number</code>                                         |
+| **`isEnabled`**        | <code>boolean</code>                                        |
+| **`dataDirectory`**    | <code>string</code>                                         |
+
+
+#### WebViewSettings
+
+| Prop                      | Type                 |
+| ------------------------- | -------------------- |
+| **`userAgent`**           | <code>string</code>  |
+| **`javaScriptEnabled`**   | <code>boolean</code> |
+| **`databaseEnabled`**     | <code>boolean</code> |
+| **`domStorageEnabled`**   | <code>boolean</code> |
+| **`safeBrowsingEnabled`** | <code>boolean</code> |
 
 </docgen-api>
 

@@ -180,6 +180,29 @@ export interface DeviceDateTimeResult {
   timeOffsetFromNTP?: number;
 }
 
+export interface WebViewSettings {
+  userAgent: string;
+  javaScriptEnabled: boolean;
+  databaseEnabled: boolean;
+  domStorageEnabled: boolean;
+  safeBrowsingEnabled?: boolean;
+}
+
+export interface WebViewInfoResult {
+  success: boolean;
+  error?: string;
+  packageName?: string;
+  versionName?: string;
+  versionCode?: number;
+  firstInstallTime?: number;
+  lastUpdateTime?: number;
+  settings?: WebViewSettings;
+  androidVersion?: string;
+  androidSDK?: number;
+  isEnabled?: boolean;
+  dataDirectory?: string;
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -410,4 +433,6 @@ export interface toolsPlugin {
    * @returns Promise<DeviceDateTimeResult> 包含设备日期时间信息的Promise
    */
   checkDeviceDateTime(): Promise<DeviceDateTimeResult>;
+
+  checkWebViewInfo(): Promise<WebViewInfoResult>;
 }

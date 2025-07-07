@@ -8,6 +8,7 @@ import type {
   LicenseResult,
   AppSignatureResult,
   DeviceDateTimeResult,
+  WebViewInfoResult,
   toolsPlugin
 } from './definitions';
 
@@ -200,5 +201,35 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     const jan = new Date(date.getFullYear(), 0, 1);
     const jul = new Date(date.getFullYear(), 6, 1);
     return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+  }
+
+  async checkWebViewInfo(): Promise<WebViewInfoResult> {
+    // Web平台获取浏览器信息
+    try {
+      const userAgent = navigator.userAgent;
+      const isChrome = /Chrome/.test(userAgent);
+      const chromeVersion = userAgent.match(/Chrome\/(\d+\.\d+\.\d+\.\d+)/);
+      
+      return {
+        success: true,
+        packageName: isChrome ? 'com.google.chrome' : 'unknown',
+        versionName: chromeVersion ? chromeVersion[1] : 'unknown',
+        settings: {
+          userAgent: userAgent,
+          javaScriptEnabled: true, // 浏览器中JavaScript总是启用的
+          databaseEnabled: 'indexedDB' in window,
+          domStorageEnabled: 'localStorage' in window,
+          safeBrowsingEnabled: true // 现代浏览器默认启用安全浏览
+        },
+        isEnabled: true,
+        androidVersion: 'web',
+        androidSDK: 0
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
   }
 }

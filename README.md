@@ -1,13 +1,189 @@
-# fantastic-capacitor-plugin
+# Fantastic Capacitor Plugin
 
-a fantastic capacitor plugin
+一个功能强大的Capacitor插件，提供了丰富的设备硬件检测和系统功能。
 
-## Install
+## 功能特性
+
+- 📱 硬件信息检测
+
+  - 存储空间（总量/可用/剩余）
+  - 内存状态（总量/可用/是否低内存）
+  - 传感器状态（支持多种传感器类型）
+  - CPU信息（核心数/频率）
+
+- 📶 Wi-Fi管理
+
+  - 扫描周围Wi-Fi网络
+  - 连接Wi-Fi（支持开放/个人/企业网络）
+  - 获取当前连接状态
+
+- 💾 外部存储
+
+  - TF卡状态监控
+  - 读取TF卡文件
+  - 存储空间分析
+
+- 🔒 安全性
+
+  - 应用签名验证
+  - 权限管理
+  - WebView信息检查
+
+- ⚡ 系统功能
+  - 日期时间验证
+  - 设备管理
+  - 端口状态检测
+
+## 安装
 
 ```bash
 npm install fantastic-capacitor-plugin
 npx cap sync
 ```
+
+## API文档
+
+### 1. 硬件信息检测
+
+#### 获取硬件信息
+
+```typescript
+import { Plugins } from '@capacitor/core';
+const { tools } = Plugins;
+
+const hardwareInfo = await tools.getHardwareInfo();
+console.log('存储空间:', hardwareInfo.storage.details);
+console.log('内存状态:', hardwareInfo.memory.details);
+console.log('可用传感器:', hardwareInfo.sensors.length);
+```
+
+#### 检查硬件要求
+
+```typescript
+const requirements = await tools.checkHardwareRequirements({
+  minStorageSpace: 1024 * 1024 * 1024, // 1GB
+  minMemory: 2 * 1024 * 1024 * 1024, // 2GB
+  minCpuCores: 4,
+  minCpuFrequency: 1.5 * 1000 * 1000 * 1000, // 1.5GHz
+  requiredSensors: ['加速度传感器', '陀螺仪传感器'],
+});
+```
+
+### 2. Wi-Fi管理
+
+#### 扫描Wi-Fi
+
+```typescript
+const wifiList = await tools.getWifiList();
+wifiList.forEach((wifi) => {
+  console.log(`${wifi.ssid}: 信号强度 ${wifi.signalStrength}%`);
+});
+```
+
+#### 连接Wi-Fi
+
+```typescript
+// 连接开放网络
+await tools.connectToOpenWifi({ ssid: 'OpenWifi' });
+
+// 连接个人网络
+await tools.connectToPersonalWifi({
+  ssid: 'HomeWifi',
+  password: 'password123',
+});
+
+// 连接企业网络
+await tools.connectToEnterpriseWifi({
+  ssid: 'CompanyWifi',
+  password: 'password123',
+  identity: 'user@company.com',
+});
+```
+
+### 3. 外部存储
+
+#### 监控TF卡状态
+
+```typescript
+// 开始监听
+await tools.startMonitoringSDCard();
+
+// 添加状态变化监听器
+tools.addListener('sdCardStateChanged', (state) => {
+  console.log('TF卡状态:', state.state);
+  console.log('可用空间:', state.availableSpace);
+});
+
+// 停止监听
+await tools.stopMonitoringSDCard();
+```
+
+### 4. 安全性
+
+#### 验证应用签名
+
+```typescript
+const signatureInfo = await tools.checkAppSignature();
+if (signatureInfo.isOriginalSignature) {
+  console.log('应用签名验证通过');
+} else {
+  console.warn('应用可能被篡改');
+}
+```
+
+### 5. 系统功能
+
+#### 检查设备时间
+
+```typescript
+const dateTimeInfo = await tools.checkDeviceDateTime();
+console.log('系统时间:', dateTimeInfo.currentDateTime);
+console.log('时区:', dateTimeInfo.timeZoneName);
+```
+
+## 平台支持
+
+| 功能         | Android | iOS | Web |
+| ------------ | ------- | --- | --- |
+| 硬件信息检测 | ✅      | 🚧  | ⚠️  |
+| Wi-Fi管理    | ✅      | 🚧  | ❌  |
+| 外部存储     | ✅      | 🚧  | ⚠️  |
+| 安全性       | ✅      | 🚧  | ⚠️  |
+| 系统功能     | ✅      | 🚧  | ⚠️  |
+
+✅ 完全支持
+🚧 开发中
+⚠️ 部分支持
+❌ 不支持
+
+## 注意事项
+
+1. Android权限
+
+   - 需要在AndroidManifest.xml中添加相应权限
+   - 部分功能需要运行时权限
+
+2. 存储空间
+
+   - 容量单位统一使用GB
+   - 精确到小数点后2位
+
+3. 传感器检测
+
+   - 不同设备支持的传感器类型可能不同
+   - 建议先检查传感器可用性
+
+4. Wi-Fi连接
+   - Android 10及以上版本需要特殊处理
+   - 企业网络连接可能需要额外配置
+
+## 贡献指南
+
+欢迎提交Issue和Pull Request！
+
+## 许可证
+
+MIT License
 
 ## API
 
@@ -30,6 +206,8 @@ npx cap sync
 * [`checkAppSignature()`](#checkappsignature)
 * [`checkDeviceDateTime()`](#checkdevicedatetime)
 * [`checkWebViewInfo()`](#checkwebviewinfo)
+* [`checkHardwareRequirements(...)`](#checkhardwarerequirements)
+* [`getHardwareInfo()`](#gethardwareinfo)
 * [Interfaces](#interfaces)
 
 </docgen-index>
@@ -302,6 +480,37 @@ checkWebViewInfo() => Promise<WebViewInfoResult>
 --------------------
 
 
+### checkHardwareRequirements(...)
+
+```typescript
+checkHardwareRequirements(options: { minStorageSpace: number; minMemory: number; minCpuCores: number; minCpuFrequency: number; requiredSensors: string[]; }) => Promise<HardwareCheckResult>
+```
+
+检查设备硬件是否满足要求
+
+| Param         | Type                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **`options`** | <code>{ minStorageSpace: number; minMemory: number; minCpuCores: number; minCpuFrequency: number; requiredSensors: string[]; }</code> |
+
+**Returns:** <code>Promise&lt;<a href="#hardwarecheckresult">HardwareCheckResult</a>&gt;</code>
+
+--------------------
+
+
+### getHardwareInfo()
+
+```typescript
+getHardwareInfo() => Promise<HardwareInfoResult>
+```
+
+获取设备硬件信息
+包括存储空间、内存和传感器状态
+
+**Returns:** <code>Promise&lt;<a href="#hardwareinforesult">HardwareInfoResult</a>&gt;</code>
+
+--------------------
+
+
 ### Interfaces
 
 
@@ -489,6 +698,77 @@ checkWebViewInfo() => Promise<WebViewInfoResult>
 | **`databaseEnabled`**     | <code>boolean</code> |
 | **`domStorageEnabled`**   | <code>boolean</code> |
 | **`safeBrowsingEnabled`** | <code>boolean</code> |
+
+
+#### HardwareCheckResult
+
+| Prop          | Type                                                                                                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`success`** | <code>boolean</code>                                                                                                                                                                       |
+| **`error`**   | <code>string</code>                                                                                                                                                                        |
+| **`storage`** | <code>{ passed: boolean; available: number; required: number; details: string; }</code>                                                                                                    |
+| **`memory`**  | <code>{ passed: boolean; available: number; required: number; details: string; }</code>                                                                                                    |
+| **`cpu`**     | <code>{ passed: boolean; cores: { available: number; required: number; passed: boolean; }; frequency: { available: number; required: number; passed: boolean; }; details: string; }</code> |
+| **`sensors`** | <code>{ passed: boolean; available: string[]; required: string[]; missing: string[]; details: string; }</code>                                                                             |
+
+
+#### HardwareInfoResult
+
+| Prop          | Type                                                |
+| ------------- | --------------------------------------------------- |
+| **`success`** | <code>boolean</code>                                |
+| **`error`**   | <code>string</code>                                 |
+| **`storage`** | <code><a href="#storageinfo">StorageInfo</a></code> |
+| **`memory`**  | <code><a href="#memoryinfo">MemoryInfo</a></code>   |
+| **`cpu`**     | <code><a href="#cpuinfo">CpuInfo</a></code>         |
+| **`sensors`** | <code>SensorInfo[]</code>                           |
+
+
+#### StorageInfo
+
+| Prop                 | Type                 |
+| -------------------- | -------------------- |
+| **`totalSpace`**     | <code>number</code>  |
+| **`availableSpace`** | <code>number</code>  |
+| **`freeSpace`**      | <code>number</code>  |
+| **`details`**        | <code>string</code>  |
+| **`isHealthy`**      | <code>boolean</code> |
+| **`healthDetails`**  | <code>string</code>  |
+
+
+#### MemoryInfo
+
+| Prop                  | Type                 |
+| --------------------- | -------------------- |
+| **`totalMemory`**     | <code>number</code>  |
+| **`availableMemory`** | <code>number</code>  |
+| **`lowMemory`**       | <code>boolean</code> |
+| **`details`**         | <code>string</code>  |
+| **`isHealthy`**       | <code>boolean</code> |
+| **`healthDetails`**   | <code>string</code>  |
+
+
+#### CpuInfo
+
+| Prop              | Type                 |
+| ----------------- | -------------------- |
+| **`cores`**       | <code>number</code>  |
+| **`frequency`**   | <code>number</code>  |
+| **`isHealthy`**   | <code>boolean</code> |
+| **`temperature`** | <code>number</code>  |
+| **`usage`**       | <code>number</code>  |
+| **`details`**     | <code>string</code>  |
+
+
+#### SensorInfo
+
+| Prop            | Type                 |
+| --------------- | -------------------- |
+| **`name`**      | <code>string</code>  |
+| **`type`**      | <code>string</code>  |
+| **`vendor`**    | <code>string</code>  |
+| **`isWorking`** | <code>boolean</code> |
+| **`details`**   | <code>string</code>  |
 
 </docgen-api>
 

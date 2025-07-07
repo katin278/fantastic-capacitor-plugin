@@ -203,6 +203,96 @@ export interface WebViewInfoResult {
   dataDirectory?: string;
 }
 
+export interface HardwareCheckResult {
+  success: boolean;
+  error?: string;
+  
+  // 存储检查结果
+  storage: {
+    passed: boolean;
+    available: number;
+    required: number;
+    details: string;
+  };
+  
+  // 内存检查结果
+  memory: {
+    passed: boolean;
+    available: number;
+    required: number;
+    details: string;
+  };
+  
+  // CPU检查结果
+  cpu: {
+    passed: boolean;
+    cores: {
+      available: number;
+      required: number;
+      passed: boolean;
+    };
+    frequency: {
+      available: number;
+      required: number;
+      passed: boolean;
+    };
+    details: string;
+  };
+  
+  // 传感器检查结果
+  sensors: {
+    passed: boolean;
+    available: string[];
+    required: string[];
+    missing: string[];
+    details: string;
+  };
+}
+
+export interface StorageInfo {
+  totalSpace: number;      // 总存储空间（GB）
+  availableSpace: number;  // 可用存储空间（GB）
+  freeSpace: number;       // 剩余存储空间（GB）
+  details: string;         // 人类可读的详细信息
+  isHealthy: boolean;      // 存储设备是否健康
+  healthDetails: string;   // 健康状态详细信息
+}
+
+export interface MemoryInfo {
+  totalMemory: number;     // 总内存（GB）
+  availableMemory: number; // 可用内存（GB）
+  lowMemory: boolean;      // 是否处于低内存状态
+  details: string;         // 人类可读的详细信息
+  isHealthy: boolean;      // 内存是否健康
+  healthDetails: string;   // 健康状态详细信息
+}
+
+export interface CpuInfo {
+  cores: number;           // CPU核心数
+  frequency: number;       // CPU频率（GHz）
+  isHealthy: boolean;      // CPU是否健康
+  temperature: number;     // CPU温度（摄氏度）
+  usage: number;          // CPU使用率（百分比）
+  details: string;        // 详细信息
+}
+
+export interface SensorInfo {
+  name: string;           // 传感器名称
+  type: string;          // 传感器类型
+  vendor: string;        // 制造商
+  isWorking: boolean;    // 是否正常工作
+  details: string;       // 详细信息
+}
+
+export interface HardwareInfoResult {
+  success: boolean;
+  error?: string;
+  storage: StorageInfo;
+  memory: MemoryInfo;
+  cpu: CpuInfo;           // 添加CPU信息
+  sensors: SensorInfo[];
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -435,4 +525,28 @@ export interface toolsPlugin {
   checkDeviceDateTime(): Promise<DeviceDateTimeResult>;
 
   checkWebViewInfo(): Promise<WebViewInfoResult>;
+
+  /**
+   * 检查设备硬件是否满足要求
+   * @param options.minStorageSpace 最小存储空间要求（字节）
+   * @param options.minMemory 最小内存要求（字节）
+   * @param options.minCpuCores 最小CPU核心数
+   * @param options.minCpuFrequency 最小CPU频率（Hz）
+   * @param options.requiredSensors 必需的传感器类型列表
+   * @returns Promise<HardwareCheckResult> 硬件检查结果
+   */
+  checkHardwareRequirements(options: {
+    minStorageSpace: number;
+    minMemory: number;
+    minCpuCores: number;
+    minCpuFrequency: number;
+    requiredSensors: string[];
+  }): Promise<HardwareCheckResult>;
+
+  /**
+   * 获取设备硬件信息
+   * 包括存储空间、内存和传感器状态
+   * @returns Promise<HardwareInfoResult> 硬件信息
+   */
+  getHardwareInfo(): Promise<HardwareInfoResult>;
 }

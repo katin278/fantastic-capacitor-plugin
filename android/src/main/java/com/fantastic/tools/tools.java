@@ -59,6 +59,10 @@ import java.util.Formatter;
 import android.webkit.WebView;
 import android.webkit.WebSettings;
 
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
+import android.app.ActivityManager;
+
 public class tools {
     private static final String TAG = "FantasticWifiTools";
     private BroadcastReceiver sdCardReceiver;
@@ -1643,6 +1647,361 @@ public class tools {
         } catch (Exception e) {
             Log.e(TAG, "检查WebView可用性时出错: " + e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * 将字节转换为GB
+     */
+    private double bytesToGB(long bytes) {
+        return bytes / (1024.0 * 1024.0 * 1024.0);
+    }
+
+    /**
+     * 获取设备硬件信息
+     */
+    public JSONObject getHardwareInfo(Context context) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            // 获取存储信息
+            JSONObject storage = new JSONObject();
+            File internalStorage = context.getFilesDir().getParentFile();
+            StatFs stat = new StatFs(internalStorage.getPath());
+            
+            long blockSize = stat.getBlockSizeLong();
+            long totalBlocks = stat.getBlockCountLong();
+            long availableBlocks = stat.getAvailableBlocksLong();
+            long freeBlocks = stat.getFreeBlocksLong();
+            
+            long totalBytes = totalBlocks * blockSize;
+            long availableBytes = availableBlocks * blockSize;
+            long freeBytes = freeBlocks * blockSize;
+            
+            // 转换为GB
+            double totalGB = bytesToGB(totalBytes);
+            double availableGB = bytesToGB(availableBytes);
+            double freeGB = bytesToGB(freeBytes);
+            
+            // 检查存储健康状态
+            boolean isStorageHealthy = true;
+            StringBuilder storageHealthDetails = new StringBuilder();
+            
+            // 1. 检查剩余空间比例
+            double freeSpaceRatio = (double) freeBytes / totalBytes;
+            if (freeSpaceRatio < 0.1) { // 剩余空间小于10%
+                isStorageHealthy = false;
+                storageHealthDetails.append("存储空间严重不足（<10%）; ");
+            } else if (freeSpaceRatio < 0.2) { // 剩余空间小于20%
+                storageHealthDetails.append("存储空间偏低（<20%）; ");
+            }
+            
+            // 2. 检查存储设备读写速度
+            try {
+                File testFile = new File(context.getCacheDir(), "storage_speed_test");
+                long startTime = System.nanoTime();
+                
+                // 写入测试
+                FileOutputStream fos = new FileOutputStream(testFile);
+                byte[] testData = new byte[1024 * 1024]; // 1MB数据
+                fos.write(testData);
+                fos.close();
+                
+                // 读取测试
+                FileInputStream fis = new FileInputStream(testFile);
+                fis.read(new byte[1024 * 1024]);
+                fis.close();
+                
+                // 计算读写时间
+                long endTime = System.nanoTime();
+                double timeMs = (endTime - startTime) / 1_000_000.0; // 转换为毫秒
+                
+                testFile.delete();
+                
+                if (timeMs > 1000) { // 如果读写1MB数据超过1秒
+                    isStorageHealthy = false;
+                    storageHealthDetails.append("存储设备读写速度异常; ");
+                }
+            } catch (Exception e) {
+                isStorageHealthy = false;
+                storageHealthDetails.append("存储设备读写测试失败; ");
+            }
+            
+            storage.put("totalSpace", totalGB);
+            storage.put("availableSpace", availableGB);
+            storage.put("freeSpace", freeGB);
+            storage.put("isHealthy", isStorageHealthy);
+            storage.put("healthDetails", storageHealthDetails.length() > 0 ? 
+                       storageHealthDetails.toString() : "存储设备状态正常");
+            storage.put("details", String.format(
+                "总存储空间: %.2f GB, 可用空间: %.2f GB, 剩余空间: %.2f GB",
+                totalGB, availableGB, freeGB
+            ));
+            
+            // 获取内存信息
+            JSONObject memory = new JSONObject();
+            ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+            ActivityManager.MemoryInfo memInfo = new ActivityManager.MemoryInfo();
+            activityManager.getMemoryInfo(memInfo);
+            
+            // 转换为GB
+            double totalMemGB = bytesToGB(memInfo.totalMem);
+            double availableMemGB = bytesToGB(memInfo.availMem);
+            
+            // 检查内存健康状态
+            boolean isMemoryHealthy = true;
+            StringBuilder memoryHealthDetails = new StringBuilder();
+            
+            // 1. 检查可用内存比例
+            double availableMemRatio = (double) memInfo.availMem / memInfo.totalMem;
+            if (availableMemRatio < 0.1) { // 可用内存小于10%
+                isMemoryHealthy = false;
+                memoryHealthDetails.append("可用内存严重不足（<10%）; ");
+            } else if (availableMemRatio < 0.2) { // 可用内存小于20%
+                memoryHealthDetails.append("可用内存偏低（<20%）; ");
+            }
+            
+            // 2. 检查内存分配速度
+            try {
+                long startTime = System.nanoTime();
+                byte[] testData = new byte[50 * 1024 * 1024]; // 分配50MB内存
+                long endTime = System.nanoTime();
+                double allocTimeMs = (endTime - startTime) / 1_000_000.0;
+                
+                if (allocTimeMs > 100) { // 如果分配50MB内存超过100ms
+                    isMemoryHealthy = false;
+                    memoryHealthDetails.append("内存分配速度异常; ");
+                }
+            } catch (OutOfMemoryError e) {
+                isMemoryHealthy = false;
+                memoryHealthDetails.append("内存分配测试失败; ");
+            }
+            
+            memory.put("totalMemory", totalMemGB);
+            memory.put("availableMemory", availableMemGB);
+            memory.put("lowMemory", memInfo.lowMemory);
+            memory.put("isHealthy", isMemoryHealthy);
+            memory.put("healthDetails", memoryHealthDetails.length() > 0 ? 
+                      memoryHealthDetails.toString() : "内存状态正常");
+            memory.put("details", String.format(
+                "总内存: %.2f GB, 可用内存: %.2f GB, 低内存状态: %s",
+                totalMemGB, availableMemGB,
+                memInfo.lowMemory ? "是" : "否"
+            ));
+            
+            // 获取CPU信息
+            JSONObject cpu = new JSONObject();
+            int cores = Runtime.getRuntime().availableProcessors();
+            
+            // 读取CPU频率
+            double maxFreq = 0;
+            try {
+                File[] cpuFiles = new File("/sys/devices/system/cpu/").listFiles(
+                    file -> file.getName().matches("cpu[0-9]+")
+                );
+                
+                if (cpuFiles != null) {
+                    for (File cpuFile : cpuFiles) {
+                        File freqFile = new File(cpuFile, "cpufreq/scaling_cur_freq");
+                        if (freqFile.exists()) {
+                            BufferedReader reader = new BufferedReader(new FileReader(freqFile));
+                            String line = reader.readLine();
+                            reader.close();
+                            if (line != null) {
+                                double freq = Double.parseDouble(line) / 1_000_000.0; // 转换为GHz
+                                maxFreq = Math.max(maxFreq, freq);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "读取CPU频率失败: " + e.getMessage());
+            }
+            
+            // 读取CPU温度
+            double temperature = 0;
+            try {
+                File tempFile = new File("/sys/class/thermal/thermal_zone0/temp");
+                if (tempFile.exists()) {
+                    BufferedReader reader = new BufferedReader(new FileReader(tempFile));
+                    String line = reader.readLine();
+                    reader.close();
+                    if (line != null) {
+                        temperature = Double.parseDouble(line) / 1000.0; // 转换为摄氏度
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "读取CPU温度失败: " + e.getMessage());
+            }
+            
+            // 获取CPU使用率
+            double cpuUsage = 0;
+            try {
+                BufferedReader reader = new BufferedReader(new FileReader("/proc/stat"));
+                String line = reader.readLine();
+                reader.close();
+                if (line != null) {
+                    String[] values = line.split("\\s+");
+                    if (values.length >= 5) {
+                        long user = Long.parseLong(values[1]);
+                        long nice = Long.parseLong(values[2]);
+                        long system = Long.parseLong(values[3]);
+                        long idle = Long.parseLong(values[4]);
+                        long total = user + nice + system + idle;
+                        cpuUsage = 100.0 * (1 - (double)idle / total);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "读取CPU使用率失败: " + e.getMessage());
+            }
+            
+            // 检查CPU健康状态
+            boolean isCpuHealthy = true;
+            StringBuilder cpuHealthDetails = new StringBuilder();
+            
+            // 1. 检查温度
+            if (temperature > 80) { // 温度超过80度
+                isCpuHealthy = false;
+                cpuHealthDetails.append("CPU温度过高; ");
+            } else if (temperature > 70) { // 温度超过70度
+                cpuHealthDetails.append("CPU温度偏高; ");
+            }
+            
+            // 2. 检查使用率
+            if (cpuUsage > 90) { // CPU使用率超过90%
+                isCpuHealthy = false;
+                cpuHealthDetails.append("CPU使用率过高; ");
+            } else if (cpuUsage > 80) { // CPU使用率超过80%
+                cpuHealthDetails.append("CPU负载偏高; ");
+            }
+            
+            cpu.put("cores", cores);
+            cpu.put("frequency", maxFreq);
+            cpu.put("isHealthy", isCpuHealthy);
+            cpu.put("temperature", temperature);
+            cpu.put("usage", cpuUsage);
+            cpu.put("details", String.format(
+                "CPU核心数: %d, 频率: %.2f GHz, 温度: %.1f℃, 使用率: %.1f%%",
+                cores, maxFreq, temperature, cpuUsage
+            ));
+            
+            // 获取传感器信息
+            JSONArray sensors = new JSONArray();
+            SensorManager sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+            List<Sensor> sensorList = sensorManager.getSensorList(Sensor.TYPE_ALL);
+            
+            for (Sensor sensor : sensorList) {
+                JSONObject sensorInfo = new JSONObject();
+                sensorInfo.put("name", sensor.getName());
+                sensorInfo.put("type", getSensorTypeName(sensor.getType()));
+                sensorInfo.put("vendor", sensor.getVendor());
+                
+                // 检查传感器是否正常工作
+                boolean isWorking = sensor.getMinDelay() > 0;
+                sensorInfo.put("isWorking", isWorking);
+                
+                StringBuilder details = new StringBuilder();
+                details.append(String.format("类型: %s, ", getSensorTypeName(sensor.getType())));
+                details.append(String.format("制造商: %s, ", sensor.getVendor()));
+                details.append(String.format("版本: %d, ", sensor.getVersion()));
+                details.append(String.format("功耗: %.2f mA, ", sensor.getPower()));
+                details.append(String.format("最大量程: %.2f, ", sensor.getMaximumRange()));
+                details.append(String.format("分辨率: %.6f, ", sensor.getResolution()));
+                details.append(String.format("最小延迟: %d μs", sensor.getMinDelay()));
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    details.append(String.format(", 最大延迟: %d μs", sensor.getMaxDelay()));
+                    details.append(String.format(", 报告模式: %s", getReportingMode(sensor.getReportingMode())));
+                }
+                
+                sensorInfo.put("details", details.toString());
+                sensors.put(sensorInfo);
+            }
+            
+            result.put("success", true);
+            result.put("storage", storage);
+            result.put("memory", memory);
+            result.put("cpu", cpu);
+            result.put("sensors", sensors);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "获取硬件信息时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 获取传感器报告模式名称
+     */
+    private String getReportingMode(int mode) {
+        switch (mode) {
+            case Sensor.REPORTING_MODE_CONTINUOUS:
+                return "连续";
+            case Sensor.REPORTING_MODE_ON_CHANGE:
+                return "变化时";
+            case Sensor.REPORTING_MODE_ONE_SHOT:
+                return "单次";
+            case Sensor.REPORTING_MODE_SPECIAL_TRIGGER:
+                return "特殊触发";
+            default:
+                return "未知";
+        }
+    }
+
+    /**
+     * 获取传感器类型名称
+     */
+    private String getSensorTypeName(int type) {
+        switch (type) {
+            case Sensor.TYPE_ACCELEROMETER:
+                return "加速度传感器";
+            case Sensor.TYPE_AMBIENT_TEMPERATURE:
+                return "环境温度传感器";
+            case Sensor.TYPE_GAME_ROTATION_VECTOR:
+                return "游戏旋转矢量传感器";
+            case Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR:
+                return "地磁旋转矢量传感器";
+            case Sensor.TYPE_GRAVITY:
+                return "重力传感器";
+            case Sensor.TYPE_GYROSCOPE:
+                return "陀螺仪传感器";
+            case Sensor.TYPE_GYROSCOPE_UNCALIBRATED:
+                return "未校准陀螺仪传感器";
+            case Sensor.TYPE_HEART_RATE:
+                return "心率传感器";
+            case Sensor.TYPE_LIGHT:
+                return "光线传感器";
+            case Sensor.TYPE_LINEAR_ACCELERATION:
+                return "线性加速度传感器";
+            case Sensor.TYPE_MAGNETIC_FIELD:
+                return "磁场传感器";
+            case Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED:
+                return "未校准磁场传感器";
+            case Sensor.TYPE_ORIENTATION:
+                return "方向传感器";
+            case Sensor.TYPE_PRESSURE:
+                return "压力传感器";
+            case Sensor.TYPE_PROXIMITY:
+                return "距离传感器";
+            case Sensor.TYPE_RELATIVE_HUMIDITY:
+                return "相对湿度传感器";
+            case Sensor.TYPE_ROTATION_VECTOR:
+                return "旋转矢量传感器";
+            case Sensor.TYPE_SIGNIFICANT_MOTION:
+                return "显著运动传感器";
+            case Sensor.TYPE_STEP_COUNTER:
+                return "计步传感器";
+            case Sensor.TYPE_STEP_DETECTOR:
+                return "步伐检测传感器";
+            default:
+                return "未知传感器(类型" + type + ")";
         }
     }
 }

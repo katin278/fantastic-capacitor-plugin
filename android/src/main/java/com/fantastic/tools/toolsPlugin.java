@@ -620,4 +620,16 @@ public class toolsPlugin extends Plugin {
             call.reject("获取WebView信息失败: " + e.getMessage());
         }
     }
+
+    @PluginMethod()
+    public void getHardwareInfo(PluginCall call) {
+        try {
+            tools tools = new tools();
+            JSONObject result = tools.getHardwareInfo(getContext());
+            JSObject ret = JSObject.fromJSONObject(result);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("获取硬件信息失败: " + e.getMessage());
+        }
+    }
 }

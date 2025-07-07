@@ -9,6 +9,8 @@ import type {
   AppSignatureResult,
   DeviceDateTimeResult,
   WebViewInfoResult,
+  HardwareCheckResult,
+  HardwareInfoResult,
   toolsPlugin
 } from './definitions';
 
@@ -204,32 +206,191 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
   }
 
   async checkWebViewInfo(): Promise<WebViewInfoResult> {
-    // Web平台获取浏览器信息
-    try {
-      const userAgent = navigator.userAgent;
-      const isChrome = /Chrome/.test(userAgent);
-      const chromeVersion = userAgent.match(/Chrome\/(\d+\.\d+\.\d+\.\d+)/);
-      
-      return {
-        success: true,
-        packageName: isChrome ? 'com.google.chrome' : 'unknown',
-        versionName: chromeVersion ? chromeVersion[1] : 'unknown',
-        settings: {
-          userAgent: userAgent,
-          javaScriptEnabled: true, // 浏览器中JavaScript总是启用的
-          databaseEnabled: 'indexedDB' in window,
-          domStorageEnabled: 'localStorage' in window,
-          safeBrowsingEnabled: true // 现代浏览器默认启用安全浏览
+    return {
+      success: false,
+      error: "Web平台不支持WebView检查"
+    };
+  }
+
+  async checkHardwareRequirements(options: {
+    minStorageSpace: number;
+    minMemory: number;
+    minCpuCores: number;
+    minCpuFrequency: number;
+    requiredSensors: string[];
+  }): Promise<HardwareCheckResult> {
+    // Web平台的硬件检查实现
+    const result: HardwareCheckResult = {
+      success: true,
+      storage: {
+        passed: true,
+        available: 0,
+        required: options.minStorageSpace,
+        details: "Web平台不支持存储空间检查"
+      },
+      memory: {
+        passed: true,
+        available: 0,
+        required: options.minMemory,
+        details: "Web平台不支持内存检查"
+      },
+      cpu: {
+        passed: true,
+        cores: {
+          available: navigator.hardwareConcurrency || 1,
+          required: options.minCpuCores,
+          passed: (navigator.hardwareConcurrency || 1) >= options.minCpuCores
         },
-        isEnabled: true,
-        androidVersion: 'web',
-        androidSDK: 0
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        frequency: {
+          available: 0,
+          required: options.minCpuFrequency,
+          passed: true
+        },
+        details: `CPU核心数: ${navigator.hardwareConcurrency || 1}`
+      },
+      sensors: {
+        passed: true,
+        available: [],
+        required: options.requiredSensors,
+        missing: [],
+        details: "Web平台不支持传感器检查"
+      }
+    };
+    return result;
+  }
+
+  async getHardwareInfo(): Promise<HardwareInfoResult> {
+    // Web平台的硬件信息实现
+    const result: HardwareInfoResult = {
+      success: true,
+      storage: {
+        totalSpace: 0,
+        availableSpace: 0,
+        freeSpace: 0,
+        details: "Web平台不支持存储空间检查",
+        isHealthy: true,
+        healthDetails: "Web平台无法检测存储设备健康状态"
+      },
+      memory: {
+        totalMemory: 0,
+        availableMemory: 0,
+        lowMemory: false,
+        details: "Web平台不支持内存检查",
+        isHealthy: true,
+        healthDetails: "Web平台无法检测内存健康状态"
+      },
+      cpu: {
+        cores: navigator.hardwareConcurrency || 1,
+        frequency: 0,
+        isHealthy: true,
+        temperature: 0,
+        usage: 0,
+        details: `CPU核心数: ${navigator.hardwareConcurrency || 1}`
+      },
+      sensors: []
+    };
+
+    // 尝试获取存储信息（如果支持）
+    if (navigator.storage && navigator.storage.estimate) {
+      try {
+        const estimate = await navigator.storage.estimate();
+        const totalGB = estimate.quota ? estimate.quota / (1024 * 1024 * 1024) : 0;
+        const usedGB = estimate.usage ? estimate.usage / (1024 * 1024 * 1024) : 0;
+        const availableGB = totalGB - usedGB;
+
+        // 检查存储健康状态
+        const freeSpaceRatio = availableGB / totalGB;
+        const isHealthy = freeSpaceRatio >= 0.1; // 剩余空间至少10%
+        const healthDetails = freeSpaceRatio < 0.1 ? 
+          "存储空间严重不足（<10%）" : 
+          freeSpaceRatio < 0.2 ? 
+          "存储空间偏低（<20%）" : 
+          "存储空间充足";
+
+        result.storage = {
+          totalSpace: totalGB,
+          availableSpace: availableGB,
+          freeSpace: availableGB,
+          details: `总存储空间: ${totalGB.toFixed(2)} GB, 可用空间: ${availableGB.toFixed(2)} GB, 剩余空间: ${availableGB.toFixed(2)} GB`,
+          isHealthy,
+          healthDetails
+        };
+      } catch (e) {
+        console.warn('获取存储信息失败:', e);
+      }
+    }
+
+    // 尝试获取内存信息（如果支持）
+    if ((navigator as any).deviceMemory) {
+      const totalMemGB = (navigator as any).deviceMemory;
+      
+      // 检查内存健康状态
+      const isHealthy = totalMemGB >= 4; // 假设4GB是健康的最小内存
+      const healthDetails = totalMemGB < 2 ? 
+        "系统内存过低（<2GB）" : 
+        totalMemGB < 4 ? 
+        "系统内存偏低（<4GB）" : 
+        "系统内存充足";
+
+      result.memory = {
+        totalMemory: totalMemGB,
+        availableMemory: totalMemGB, // Web无法获取可用内存
+        lowMemory: totalMemGB < 2,
+        details: `总内存: ${totalMemGB.toFixed(2)} GB, 可用内存: 未知, 低内存状态: ${totalMemGB < 2 ? '是' : '否'}`,
+        isHealthy,
+        healthDetails
       };
     }
+
+    // 尝试获取CPU信息（如果支持）
+    if (window.performance && (performance as any).now) {
+      try {
+        // 简单的CPU性能测试
+        const iterations = 1000000;
+        const startTime = performance.now();
+        for (let i = 0; i < iterations; i++) {
+          Math.sqrt(i);
+        }
+        const endTime = performance.now();
+        const timePerOperation = (endTime - startTime) / iterations;
+        
+        // 基于性能测试结果评估CPU健康状态
+        const isHealthy = timePerOperation < 0.001; // 每次操作小于1微秒
+        const performanceLevel = timePerOperation < 0.0005 ? "高" : 
+                               timePerOperation < 0.001 ? "中" : "低";
+
+        result.cpu = {
+          ...result.cpu,
+          isHealthy,
+          usage: timePerOperation * 1000, // 转换为毫秒
+          details: `CPU性能水平: ${performanceLevel}, 核心数: ${navigator.hardwareConcurrency || 1}`
+        };
+      } catch (e) {
+        console.warn('CPU性能测试失败:', e);
+      }
+    }
+
+    // 尝试获取传感器信息
+    if (window.DeviceOrientationEvent) {
+      result.sensors.push({
+        name: "方向传感器",
+        type: "ORIENTATION",
+        vendor: "Web API",
+        isWorking: true,
+        details: "设备方向传感器可用"
+      });
+    }
+
+    if (window.DeviceMotionEvent) {
+      result.sensors.push({
+        name: "运动传感器",
+        type: "MOTION",
+        vendor: "Web API",
+        isWorking: true,
+        details: "设备运动传感器可用"
+      });
+    }
+
+    return result;
   }
 }

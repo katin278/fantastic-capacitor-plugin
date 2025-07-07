@@ -539,4 +539,58 @@ public class toolsPlugin extends Plugin {
             call.reject("读取license失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 检查应用是否被重新签名
+     */
+    @PluginMethod
+    public void checkAppSignature(PluginCall call) {
+        try {
+            JSONObject result = implementation.checkAppSignature(getContext());
+            
+            // 将JSONObject转换为JSObject
+            JSObject ret = new JSObject();
+            
+            // 基本信息
+            ret.put("success", result.optBoolean("success", false));
+            ret.put("packageName", result.optString("packageName", ""));
+            ret.put("currentSignature", result.optString("currentSignature", ""));
+            ret.put("isOriginalSignature", result.optBoolean("isOriginalSignature", false));
+            
+            // 错误信息（如果有）
+            if (result.has("error")) {
+                ret.put("error", result.getString("error"));
+            }
+            
+            // 处理签名详情
+            if (result.has("signatureDetails")) {
+                JSONObject details = result.getJSONObject("signatureDetails");
+                JSObject signatureDetails = new JSObject();
+                
+                // 签名值（原始格式）
+                signatureDetails.put("md5", details.optString("md5", ""));
+                signatureDetails.put("sha1", details.optString("sha1", ""));
+                signatureDetails.put("sha256", details.optString("sha256", ""));
+                
+                // 签名值（冒号分隔格式）
+                signatureDetails.put("md5_formatted", details.optString("md5_formatted", ""));
+                signatureDetails.put("sha1_formatted", details.optString("sha1_formatted", ""));
+                signatureDetails.put("sha256_formatted", details.optString("sha256_formatted", ""));
+                
+                // 证书信息
+                signatureDetails.put("issuer", details.optString("issuer", ""));
+                signatureDetails.put("subject", details.optString("subject", ""));
+                signatureDetails.put("serialNumber", details.optString("serialNumber", ""));
+                signatureDetails.put("validFrom", details.optString("validFrom", ""));
+                signatureDetails.put("validUntil", details.optString("validUntil", ""));
+                
+                ret.put("signatureDetails", signatureDetails);
+            }
+            
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "检查应用签名失败: " + e.getMessage());
+            call.reject("检查应用签名失败: " + e.getMessage());
+        }
+    }
 }

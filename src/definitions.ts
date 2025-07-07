@@ -73,6 +73,29 @@ export interface LicenseResult {
   error?: string;
 }
 
+export interface SignatureDetails {
+  md5: string;
+  sha1: string;
+  sha256: string;
+  md5_formatted: string;
+  sha1_formatted: string;
+  sha256_formatted: string;
+  issuer: string;
+  subject: string;
+  serialNumber: string;
+  validFrom: string;
+  validUntil: string;
+}
+
+export interface AppSignatureResult {
+  success: boolean;
+  packageName: string;
+  currentSignature: string;
+  isOriginalSignature: boolean;
+  signatureDetails?: SignatureDetails;
+  error?: string;
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -269,4 +292,32 @@ export interface toolsPlugin {
   getAvailableLicenseFromSD(options: {
     fileName: string;
   }): Promise<LicenseResult>;
+
+  /**
+   * 检查应用是否被重新签名
+   * 
+   * 用于检查应用是否被重新签名，可以用来验证应用的完整性。
+   * 返回签名的详细信息，包括MD5、SHA-1、SHA-256等多种格式的签名值，
+   * 以及证书的详细信息（发行者、有效期等）。
+   * 
+   * @returns 包含签名检查结果的Promise
+   * @example
+   * const result = await tools.checkAppSignature();
+   * // 返回结果示例：
+   * // {
+   * //   "success": true,
+   * //   "packageName": "com.example.app",
+   * //   "currentSignature": "80abf06c4d842440dc...",
+   * //   "isOriginalSignature": true,
+   * //   "signatureDetails": {
+   * //     "md5": "1234567890abcdef...",
+   * //     "sha1": "1234567890abcdef...",
+   * //     "sha256": "80abf06c4d842440dc...",
+   * //     "issuer": "CN=Example",
+   * //     "validFrom": "2023-01-01",
+   * //     "validUntil": "2024-01-01"
+   * //   }
+   * // }
+   */
+  checkAppSignature(): Promise<AppSignatureResult>;
 }

@@ -3,6 +3,9 @@ package com.fantastic.tools;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageInfo;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
@@ -46,6 +49,12 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+
+import java.security.MessageDigest;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.io.ByteArrayInputStream;
+import java.util.Formatter;
 
 public class tools {
     private static final String TAG = "FantasticWifiTools";
@@ -1176,5 +1185,168 @@ public class tools {
         }
         
         return permissions.toString();
+    }
+
+    /**
+     * 检查应用是否被重新签名
+     * @param context Android上下文
+     * @return 包含检查结果的JSON对象
+     */
+    public JSONObject checkAppSignature(Context context) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            PackageManager pm = context.getPackageManager();
+            String packageName = context.getPackageName();
+            
+            // 获取当前应用的签名信息
+            PackageInfo packageInfo;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageInfo = pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES);
+            } else {
+                packageInfo = pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES);
+            }
+            
+            // 原始签名的SHA-256指纹（原始十六进制格式，不带冒号）
+            String originalSignature = "80abf06c4d842440dc23028816604536302c452b6de4499e2609f86677141ddf";
+            
+            // 获取当前签名
+            String currentSignature = "";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                if (packageInfo.signingInfo != null) {
+                    Signature[] signatures = packageInfo.signingInfo.getApkContentsSigners();
+                    if (signatures != null && signatures.length > 0) {
+                        currentSignature = bytesToHex(getSHA256(signatures[0].toByteArray()));
+                    }
+                }
+            } else {
+                if (packageInfo.signatures != null && packageInfo.signatures.length > 0) {
+                    currentSignature = bytesToHex(getSHA256(packageInfo.signatures[0].toByteArray()));
+                }
+            }
+            
+            // 记录详细信息
+            result.put("success", true);
+            result.put("packageName", packageName);
+            result.put("currentSignature", currentSignature);
+            result.put("isOriginalSignature", originalSignature.equalsIgnoreCase(currentSignature));
+            
+            // 添加更多签名信息
+            JSONObject signatureDetails = new JSONObject();
+            Signature[] signatures;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                signatures = packageInfo.signingInfo.getApkContentsSigners();
+            } else {
+                signatures = packageInfo.signatures;
+            }
+            
+            if (signatures != null && signatures.length > 0) {
+                byte[] signatureBytes = signatures[0].toByteArray();
+                signatureDetails.put("md5", bytesToHex(getMD5(signatureBytes)));
+                signatureDetails.put("sha1", bytesToHex(getSHA1(signatureBytes)));
+                signatureDetails.put("sha256", bytesToHex(getSHA256(signatureBytes)));
+                
+                // 同时提供冒号分隔的格式
+                signatureDetails.put("md5_formatted", formatSignature(getMD5(signatureBytes)));
+                signatureDetails.put("sha1_formatted", formatSignature(getSHA1(signatureBytes)));
+                signatureDetails.put("sha256_formatted", formatSignature(getSHA256(signatureBytes)));
+                
+                // 获取证书信息
+                try {
+                    CertificateFactory cf = CertificateFactory.getInstance("X.509");
+                    X509Certificate cert = (X509Certificate) cf.generateCertificate(
+                        new ByteArrayInputStream(signatureBytes)
+                    );
+                    signatureDetails.put("issuer", cert.getIssuerDN().toString());
+                    signatureDetails.put("subject", cert.getSubjectDN().toString());
+                    signatureDetails.put("serialNumber", cert.getSerialNumber().toString());
+                    signatureDetails.put("validFrom", cert.getNotBefore().toString());
+                    signatureDetails.put("validUntil", cert.getNotAfter().toString());
+                } catch (Exception e) {
+                    Log.e(TAG, "获取证书详细信息失败: " + e.getMessage());
+                }
+            }
+            result.put("signatureDetails", signatureDetails);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "检查应用签名时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 将字节数组转换为十六进制字符串（不带冒号分隔）
+     */
+    private String bytesToHex(byte[] bytes) {
+        if (bytes == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+    
+    /**
+     * 格式化签名字节数组为冒号分隔的十六进制字符串
+     */
+    private String formatSignature(byte[] signature) {
+        if (signature == null) return "";
+        Formatter formatter = new Formatter();
+        for (byte b : signature) {
+            formatter.format("%02X:", b);
+        }
+        String result = formatter.toString();
+        formatter.close();
+        // 移除最后一个冒号
+        if (result.length() > 0) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+    
+    /**
+     * 获取字节数组的MD5值
+     */
+    private byte[] getMD5(byte[] bytes) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            return md.digest(bytes);
+        } catch (Exception e) {
+            Log.e(TAG, "计算MD5失败: " + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * 获取字节数组的SHA-1值
+     */
+    private byte[] getSHA1(byte[] bytes) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            return md.digest(bytes);
+        } catch (Exception e) {
+            Log.e(TAG, "计算SHA-1失败: " + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * 获取字节数组的SHA-256值
+     */
+    private byte[] getSHA256(byte[] bytes) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            return md.digest(bytes);
+        } catch (Exception e) {
+            Log.e(TAG, "计算SHA-256失败: " + e.getMessage());
+            return null;
+        }
     }
 }

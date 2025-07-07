@@ -6,7 +6,8 @@ import type {
   WifiConnectionResult, 
   ExternalPortsStatus, 
   SDCardMonitoringResult,
-  LicenseResult
+  LicenseResult,
+  AppSignatureResult
 } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
@@ -128,5 +129,9 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
 
   async getAvailableLicenseFromSD(_options: { fileName: string; }): Promise<LicenseResult> {
     throw this.unimplemented('在Web环境中不支持读取TF卡文件');
+  }
+
+  async checkAppSignature(): Promise<AppSignatureResult> {
+    throw new Error('Method not implemented on web platform.');
   }
 }

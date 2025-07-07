@@ -1,13 +1,14 @@
 import { WebPlugin } from '@capacitor/core';
 
 import type { 
-  toolsPlugin, 
   WifiNetwork, 
   WifiConnectionResult, 
   ExternalPortsStatus, 
   SDCardMonitoringResult,
   LicenseResult,
-  AppSignatureResult
+  AppSignatureResult,
+  DeviceDateTimeResult,
+  toolsPlugin
 } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
@@ -132,6 +133,72 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
   }
 
   async checkAppSignature(): Promise<AppSignatureResult> {
-    throw new Error('Method not implemented on web platform.');
+    throw this.unimplemented('在Web平台上不支持此功能');
+  }
+
+  async checkDeviceDateTime(): Promise<DeviceDateTimeResult> {
+    try {
+      // 获取当前时间
+      const now = new Date();
+      const timestamp = now.getTime();
+      
+      // 格式化日期时间
+      const currentDateTime = now.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).replace(/\//g, '-');
+      
+      // 获取ISO 8601格式时间
+      const iso8601DateTime = now.toISOString();
+      
+      // 获取时区信息
+      const timeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const timeZoneName = new Intl.DateTimeFormat('zh-CN', {
+        timeZoneName: 'long'
+      }).formatToParts(now).find(part => part.type === 'timeZoneName')?.value || '';
+      
+      // 计算时区偏移量（小时）
+      const timeZoneOffset = -now.getTimezoneOffset() / 60;
+      
+      // 检查是否为夏令时
+      const isDaylightTime = now.getTimezoneOffset() < this.getStandardOffset(now);
+      
+      // Web平台的结果
+      const result: DeviceDateTimeResult = {
+        success: true,
+        currentDateTime,
+        iso8601DateTime,
+        timestamp,
+        unixTimestamp: Math.floor(timestamp / 1000),
+        timeZoneId,
+        timeZoneName,
+        timeZoneOffset,
+        isDaylightTime,
+        is24HourFormat: true, // Web平台默认使用24小时制
+        autoTimeEnabled: true, // Web平台时间总是自动的
+        autoTimeZoneEnabled: true, // Web平台时区总是自动的
+        isTimeAccurate: true, // Web平台时间总是准确的
+        timeOffsetFromNTP: 0 // Web平台无法获取NTP偏差
+      };
+      
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '获取时间信息失败'
+      };
+    }
+  }
+
+  // 辅助方法：获取标准时区偏移（用于判断夏令时）
+  private getStandardOffset(date: Date): number {
+    const jan = new Date(date.getFullYear(), 0, 1);
+    const jul = new Date(date.getFullYear(), 6, 1);
+    return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
   }
 }

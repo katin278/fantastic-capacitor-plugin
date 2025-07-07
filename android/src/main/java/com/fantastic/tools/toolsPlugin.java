@@ -593,4 +593,40 @@ public class toolsPlugin extends Plugin {
             call.reject("检查应用签名失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 验证设备日期和时间
+     */
+    @PluginMethod
+    public void checkDeviceDateTime(PluginCall call) {
+        try {
+            JSONObject result = implementation.checkDeviceDateTime(getContext());
+            
+            // 将JSONObject转换为JSObject
+            JSObject ret = new JSObject();
+            
+            // 复制所有字段
+            Iterator<String> keys = result.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                Object value = result.get(key);
+                if (value instanceof String) {
+                    ret.put(key, (String) value);
+                } else if (value instanceof Boolean) {
+                    ret.put(key, (Boolean) value);
+                } else if (value instanceof Integer) {
+                    ret.put(key, (Integer) value);
+                } else if (value instanceof Long) {
+                    ret.put(key, (Long) value);
+                } else if (value instanceof Double) {
+                    ret.put(key, (Double) value);
+                }
+            }
+            
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "验证设备日期和时间失败: " + e.getMessage());
+            call.reject("验证设备日期和时间失败: " + e.getMessage());
+        }
+    }
 }

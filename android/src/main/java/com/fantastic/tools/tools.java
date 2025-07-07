@@ -1349,4 +1349,116 @@ public class tools {
             return null;
         }
     }
+
+    /**
+     * 验证设备日期和时间
+     * @param context Android上下文
+     * @return 包含验证结果的JSON对象
+     */
+    public JSONObject checkDeviceDateTime(Context context) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            // 获取系统当前时间
+            long currentTimeMillis = System.currentTimeMillis();
+            java.util.Date currentDate = new java.util.Date(currentTimeMillis);
+            
+            // 获取系统时区信息
+            java.util.TimeZone timeZone = java.util.TimeZone.getDefault();
+            
+            // 格式化日期和时间
+            java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            String formattedDateTime = dateFormat.format(currentDate);
+            
+            // 检查是否为24小时制
+            android.text.format.DateFormat df = new android.text.format.DateFormat();
+            boolean is24HourFormat = android.text.format.DateFormat.is24HourFormat(context);
+            
+            // 检查自动时间设置是否启用
+            boolean autoTimeEnabled = android.provider.Settings.Global.getInt(
+                context.getContentResolver(),
+                android.provider.Settings.Global.AUTO_TIME,
+                0
+            ) == 1;
+            
+            // 检查自动时区设置是否启用
+            boolean autoTimeZoneEnabled = android.provider.Settings.Global.getInt(
+                context.getContentResolver(),
+                android.provider.Settings.Global.AUTO_TIME_ZONE,
+                0
+            ) == 1;
+
+            // 检查是否使用网络提供的时间
+            boolean useNetworkTime = android.provider.Settings.Global.getInt(
+                context.getContentResolver(),
+                android.provider.Settings.Global.AUTO_TIME,
+                0
+            ) == 1 && isNetworkTimeAvailable(context);
+            
+            // 获取ISO 8601格式时间
+            java.text.SimpleDateFormat iso8601Format = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+            String iso8601DateTime = iso8601Format.format(currentDate);
+            
+            // 构建返回结果
+            result.put("success", true);
+            result.put("currentDateTime", formattedDateTime);
+            result.put("iso8601DateTime", iso8601DateTime);
+            result.put("timestamp", currentTimeMillis);
+            result.put("unixTimestamp", currentTimeMillis / 1000);
+            result.put("timeZoneId", timeZone.getID());
+            result.put("timeZoneName", timeZone.getDisplayName());
+            result.put("timeZoneOffset", timeZone.getRawOffset() / 3600000.0); // 转换为小时
+            result.put("isDaylightTime", timeZone.inDaylightTime(currentDate));
+            result.put("is24HourFormat", is24HourFormat);
+            result.put("autoTimeEnabled", autoTimeEnabled);
+            result.put("autoTimeZoneEnabled", autoTimeZoneEnabled);
+            result.put("useNetworkTime", useNetworkTime);
+            
+            // 检查时间是否准确（基于自动时间设置状态和网络时间可用性）
+            result.put("isTimeAccurate", useNetworkTime);
+            result.put("timeOffsetFromNTP", 0); // 由于无法使用SntpClient，默认为0
+            
+        } catch (Exception e) {
+            Log.e(TAG, "验证设备日期和时间时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        }
+        
+        return result;
+    }
+
+    /**
+     * 检查网络时间是否可用
+     * @param context Android上下文
+     * @return 网络时间是否可用
+     */
+    private boolean isNetworkTimeAvailable(Context context) {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    // 使用新的NetworkCapabilities API
+                    Network network = cm.getActiveNetwork();
+                    if (network != null) {
+                        NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
+                        return capabilities != null && (
+                            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+                        );
+                    }
+                } else {
+                    // 对于旧版本Android，直接返回true，因为我们已经确认了自动时间同步是开启的
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "检查网络时间可用性时出错: " + e.getMessage());
+        }
+        return false;
+    }
 }

@@ -96,6 +96,90 @@ export interface AppSignatureResult {
   error?: string;
 }
 
+export interface DeviceDateTimeResult {
+  /** 操作是否成功 */
+  success: boolean;
+  
+  /** 如果操作失败，包含错误信息 */
+  error?: string;
+  
+  /** 当前日期时间，格式：YYYY-MM-DD HH:mm:ss
+   * 例如：2024-03-15 14:30:45
+   */
+  currentDateTime?: string;
+  
+  /** ISO 8601格式的日期时间，包含时区信息
+   * 例如：2024-03-15T14:30:45.123+08:00
+   */
+  iso8601DateTime?: string;
+  
+  /** 当前时间戳（毫秒）
+   * 从1970年1月1日UTC零点开始的毫秒数
+   */
+  timestamp?: number;
+  
+  /** Unix时间戳（秒）
+   * 从1970年1月1日UTC零点开始的秒数
+   */
+  unixTimestamp?: number;
+  
+  /** 时区ID
+   * 例如：'Asia/Shanghai', 'America/New_York'
+   */
+  timeZoneId?: string;
+  
+  /** 时区名称，本地化显示
+   * 例如：'中国标准时间', '美国东部时间'
+   */
+  timeZoneName?: string;
+  
+  /** 时区偏移量（小时）
+   * 正数表示超前UTC，负数表示落后UTC
+   * 例如：+8.0表示北京时间，-5.0表示纽约时间
+   */
+  timeZoneOffset?: number;
+  
+  /** 是否处于夏令时 
+   * true: 当前处于夏令时
+   * false: 当前处于标准时间
+   */
+  isDaylightTime?: boolean;
+  
+  /** 系统是否使用24小时制
+   * true: 使用24小时制（例如：14:30）
+   * false: 使用12小时制（例如：2:30 PM）
+   */
+  is24HourFormat?: boolean;
+  
+  /** 系统是否启用了自动时间设置
+   * true: 系统会自动从网络获取和更新时间
+   * false: 用户手动设置时间
+   */
+  autoTimeEnabled?: boolean;
+  
+  /** 系统是否启用了自动时区设置
+   * true: 系统会根据位置自动设置时区
+   * false: 用户手动设置时区
+   */
+  autoTimeZoneEnabled?: boolean;
+  
+  /** 设备时间是否准确
+   * true: 时间被认为是准确的
+   * false: 时间可能不准确
+   * Android: 基于自动时间设置状态
+   * Web: 总是返回true
+   */
+  isTimeAccurate?: boolean;
+  
+  /** 与网络时间服务器的时间偏差（毫秒）
+   * 0: 表示时间准确或无法获取偏差
+   * 正数: 表示设备时间快于标准时间
+   * 负数: 表示设备时间慢于标准时间
+   * Web平台始终返回0
+   */
+  timeOffsetFromNTP?: number;
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -320,4 +404,10 @@ export interface toolsPlugin {
    * // }
    */
   checkAppSignature(): Promise<AppSignatureResult>;
+
+  /**
+   * 验证设备日期和时间
+   * @returns Promise<DeviceDateTimeResult> 包含设备日期时间信息的Promise
+   */
+  checkDeviceDateTime(): Promise<DeviceDateTimeResult>;
 }

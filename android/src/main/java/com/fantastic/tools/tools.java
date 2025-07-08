@@ -43,6 +43,8 @@ import android.os.storage.StorageManager;
 import java.util.HashMap;
 import java.util.Map;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.lang.reflect.Method;
 import android.content.BroadcastReceiver;
 import java.io.BufferedReader;

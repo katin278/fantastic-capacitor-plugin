@@ -1,0 +1,9 @@
+{
+  "WiFiName": "DefaultWiFi",
+  "WiFiPassword": "12345678",
+  "WiFiType": "WPA2",
+  "AutoConnect": true,
+  "Timeout": 30000,
+  "RetryCount": 3,
+  "LastUpdated": "2024-01-01T00:00:00Z"
+}

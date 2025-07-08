@@ -293,6 +293,23 @@ export interface HardwareInfoResult {
   sensors: SensorInfo[];
 }
 
+export interface WifiConfigResult {
+  success: boolean;
+  wifiName?: string;
+  wifiPassword?: string;
+  wifiType?: string;
+  autoConnect?: boolean;
+  timeout?: number;
+  retryCount?: number;
+  lastUpdated?: string;
+  configFilePath?: string;
+  error?: string;
+  // 添加完整的配置对象
+  config?: {
+    [key: string]: any;
+  };
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -549,4 +566,58 @@ export interface toolsPlugin {
    * @returns Promise<HardwareInfoResult> 硬件信息
    */
   getHardwareInfo(): Promise<HardwareInfoResult>;
+
+  /**
+   * 从TF卡中读取配置文件并获取所有配置信息
+   * 
+   * 配置文件格式要求：
+   * - JSON格式
+   * - 标准字段：
+   *   - WiFiName: WiFi名称（必需）
+   *   - WiFiPassword: WiFi密码（必需）
+   *   - WiFiType: WiFi类型（可选，如WPA2/WPA3等）
+   *   - AutoConnect: 是否自动连接（可选）
+   *   - Timeout: 连接超时时间（可选，毫秒）
+   *   - RetryCount: 重试次数（可选）
+   *   - LastUpdated: 最后更新时间（可选）
+   * - 支持自定义字段
+   * 
+   * @param options.fileName 配置文件名（相对于TF卡根目录）
+   * @returns 包含所有配置信息的结果对象
+   * @example
+   * const result = await tools.getWifiNameFromConfig({
+   *   fileName: 'config.json'
+   * });
+   * // 成功返回：
+   * // {
+   * //   "success": true,
+   * //   "wifiName": "YourWiFiName",
+   * //   "wifiPassword": "YourWiFiPassword",
+   * //   "wifiType": "WPA2",
+   * //   "autoConnect": true,
+   * //   "timeout": 30000,
+   * //   "retryCount": 3,
+   * //   "lastUpdated": "2024-01-01T00:00:00Z",
+   * //   "configFilePath": "/storage/sdcard1/config.json",
+   * //   "config": {
+   * //     "WiFiName": "YourWiFiName",
+   * //     "WiFiPassword": "YourWiFiPassword",
+   * //     "WiFiType": "WPA2",
+   * //     "AutoConnect": true,
+   * //     "Timeout": 30000,
+   * //     "RetryCount": 3,
+   * //     "LastUpdated": "2024-01-01T00:00:00Z",
+   * //     "CustomField1": "自定义值1",
+   * //     "CustomField2": "自定义值2"
+   * //   }
+   * // }
+   * // 失败返回：
+   * // {
+   * //   "success": false,
+   * //   "error": "错误信息"
+   * // }
+   */
+  getWifiNameFromConfig(options: {
+    fileName: string;
+  }): Promise<WifiConfigResult>;
 }

@@ -11,7 +11,8 @@ import type {
   WebViewInfoResult,
   HardwareCheckResult,
   HardwareInfoResult,
-  toolsPlugin
+  toolsPlugin,
+  WifiConfigResult
 } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
@@ -392,5 +393,21 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     }
 
     return result;
+  }
+
+  async getWifiNameFromConfig(_options: { fileName: string; }): Promise<WifiConfigResult> {
+    return {
+      success: false,
+      error: "Web平台不支持读取TF卡配置文件。请在Android设备上使用此功能。",
+      config: {
+        WiFiName: "",
+        WiFiPassword: "",
+        WiFiType: "",
+        AutoConnect: false,
+        Timeout: 0,
+        RetryCount: 0,
+        LastUpdated: ""
+      }
+    };
   }
 }

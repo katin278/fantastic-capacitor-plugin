@@ -541,6 +541,70 @@ public class toolsPlugin extends Plugin {
     }
 
     /**
+     * 从TF卡中读取配置文件并获取WiFiName
+     */
+    @PluginMethod
+    public void getWifiNameFromConfig(PluginCall call) {
+        String fileName = call.getString("fileName");
+        if (fileName == null || fileName.isEmpty()) {
+            call.reject("文件名不能为空");
+            return;
+        }
+
+        try {
+            JSONObject result = implementation.getWifiNameFromConfig(getContext(), fileName);
+            
+            // 将JSONObject转换为JSObject
+            JSObject jsResult = new JSObject();
+            jsResult.put("success", result.optBoolean("success", false));
+            
+            if (result.has("error")) {
+                jsResult.put("error", result.optString("error"));
+            }
+            
+            if (result.has("wifiName")) {
+                jsResult.put("wifiName", result.optString("wifiName"));
+            }
+            
+            if (result.has("wifiPassword")) {
+                jsResult.put("wifiPassword", result.optString("wifiPassword"));
+            }
+            
+            if (result.has("wifiType")) {
+                jsResult.put("wifiType", result.optString("wifiType"));
+            }
+            
+            if (result.has("autoConnect")) {
+                jsResult.put("autoConnect", result.optBoolean("autoConnect"));
+            }
+            
+            if (result.has("timeout")) {
+                jsResult.put("timeout", result.optInt("timeout"));
+            }
+            
+            if (result.has("retryCount")) {
+                jsResult.put("retryCount", result.optInt("retryCount"));
+            }
+            
+            if (result.has("lastUpdated")) {
+                jsResult.put("lastUpdated", result.optString("lastUpdated"));
+            }
+            
+            if (result.has("configFilePath")) {
+                jsResult.put("configFilePath", result.optString("configFilePath"));
+            }
+            
+            if (result.has("config")) {
+                jsResult.put("config", result.optJSONObject("config"));
+            }
+            
+            call.resolve(jsResult);
+        } catch (Exception e) {
+            call.reject("读取配置文件时出错: " + e.getMessage());
+        }
+    }
+
+    /**
      * 检查应用是否被重新签名
      */
     @PluginMethod

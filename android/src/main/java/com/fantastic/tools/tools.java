@@ -2190,4 +2190,228 @@ public class tools {
                 return "未知传感器(类型" + type + ")";
         }
     }
+
+    /**
+     * 从TF卡中读取配置文件并获取所有配置信息
+     * @param context Android上下文
+     * @param configFileName 配置文件名（相对于TF卡根目录）
+     * @return 包含所有配置信息的JSON对象
+     */
+    public JSONObject getWifiNameFromConfig(Context context, String configFileName) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            // 请求必要的文件权限
+            if (!requestFilePermissions(context)) {
+                result.put("success", false);
+                result.put("error", "无法获取必要的文件访问权限");
+                return result;
+            }
+
+            // 首先检查TF卡状态
+            JSONObject portStatus = checkExternalPorts(context);
+            JSONObject tfCardInfo = portStatus.getJSONObject("tfCard");
+            
+            if (!tfCardInfo.optBoolean("isAvailable", false) || 
+                !tfCardInfo.optBoolean("isMounted", false)) {
+                result.put("success", false);
+                result.put("error", "TF卡不可用或未挂载");
+                return result;
+            }
+
+            // 获取TF卡路径
+            String sdCardPath = null;
+            
+            // 1. 首先尝试获取外部存储目录
+            File[] externalStorageDirs = context.getExternalFilesDirs(null);
+            if (externalStorageDirs != null && externalStorageDirs.length > 1 && externalStorageDirs[1] != null) {
+                String path = externalStorageDirs[1].getAbsolutePath();
+                // 移除Android/data/包名部分
+                int index = path.indexOf("/Android/data/");
+                if (index > 0) {
+                    sdCardPath = path.substring(0, index);
+                    Log.d(TAG, "通过getExternalFilesDirs找到TF卡路径: " + sdCardPath);
+                }
+            }
+            
+            // 2. 如果上述方法失败，尝试Environment.getExternalStorageDirectory()
+            if (sdCardPath == null) {
+                File externalStorage = Environment.getExternalStorageDirectory();
+                if (externalStorage != null && externalStorage.exists()) {
+                    sdCardPath = externalStorage.getAbsolutePath();
+                    Log.d(TAG, "通过Environment找到存储路径: " + sdCardPath);
+                }
+            }
+            
+            // 3. 如果还是找不到，尝试常见路径
+            if (sdCardPath == null) {
+                String[] commonPaths = {
+                    "/storage/sdcard1",
+                    "/storage/extSdCard",
+                    "/storage/external_SD",
+                    "/storage/SD",
+                    "/mnt/sdcard1",
+                    "/mnt/extSdCard",
+                    "/storage/0000-0000",
+                    "/storage/emulated/0/external_sd",
+                    "/storage/self/primary",
+                    "/storage/emulated/0"
+                };
+                
+                for (String path : commonPaths) {
+                    File potentialPath = new File(path);
+                    if (potentialPath.exists()) {
+                        sdCardPath = path;
+                        Log.d(TAG, "通过常见路径找到存储: " + sdCardPath);
+                        break;
+                    }
+                }
+            }
+            
+            if (sdCardPath == null) {
+                result.put("success", false);
+                result.put("error", "无法获取存储路径");
+                return result;
+            }
+
+            // 构建配置文件完整路径并尝试多个可能的位置
+            File configFile = null;
+            String[] possibleLocations = {
+                sdCardPath + "/" + configFileName,
+                sdCardPath + "/Download/" + configFileName,
+                sdCardPath + "/Documents/" + configFileName,
+                sdCardPath + "/Android/data/" + context.getPackageName() + "/files/" + configFileName
+            };
+
+            for (String location : possibleLocations) {
+                File testFile = new File(location);
+                if (testFile.exists()) {
+                    configFile = testFile;
+                    Log.d(TAG, "找到配置文件: " + location);
+                    break;
+                }
+            }
+
+            if (configFile == null) {
+                result.put("success", false);
+                result.put("error", "找不到配置文件，已尝试以下路径：\n" + String.join("\n", possibleLocations));
+                return result;
+            }
+
+            // 检查文件权限
+            if (!configFile.canRead()) {
+                // 尝试修改文件权限
+                try {
+                    configFile.setReadable(true, false);
+                    configFile.setExecutable(true, false);
+                    
+                    // 如果还是不能读取，尝试使用命令行修改权限
+                    if (!configFile.canRead()) {
+                        Process process = Runtime.getRuntime().exec(new String[]{
+                            "chmod",
+                            "644",
+                            configFile.getAbsolutePath()
+                        });
+                        process.waitFor();
+                        
+                        // 检查命令执行结果
+                        BufferedReader errorReader = new BufferedReader(
+                            new InputStreamReader(process.getErrorStream())
+                        );
+                        String errorLine;
+                        StringBuilder errorOutput = new StringBuilder();
+                        while ((errorLine = errorReader.readLine()) != null) {
+                            errorOutput.append(errorLine).append("\n");
+                        }
+                        
+                        if (errorOutput.length() > 0) {
+                            Log.e(TAG, "修改文件权限时出错: " + errorOutput.toString());
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "修改文件权限失败: " + e.getMessage());
+                }
+                
+                // 再次检查权限
+                if (!configFile.canRead()) {
+                    result.put("success", false);
+                    result.put("error", "无法读取配置文件（权限不足）\n" +
+                              "文件路径: " + configFile.getAbsolutePath() + "\n" +
+                              "当前权限: " + getFilePermissions(configFile) + "\n" +
+                              "请确保应用有足够的权限访问外部存储");
+                    return result;
+                }
+            }
+
+            // 读取配置文件
+            StringBuilder jsonContent = new StringBuilder();
+            BufferedReader reader = null;
+            try {
+                reader = new BufferedReader(new FileReader(configFile));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    jsonContent.append(line);
+                }
+                
+                // 解析JSON内容
+                JSONObject config = new JSONObject(jsonContent.toString());
+                
+                // 检查必需字段
+                String wifiName = config.optString("WiFiName", "");
+                String wifiPassword = config.optString("WiFiPassword", "");
+                
+                if (wifiName.isEmpty() || wifiPassword.isEmpty()) {
+                    result.put("success", false);
+                    result.put("error", "配置文件中缺少必需的WiFiName或WiFiPassword字段");
+                    return result;
+                }
+                
+                // 设置基本字段
+                result.put("success", true);
+                result.put("wifiName", wifiName);
+                result.put("wifiPassword", wifiPassword);
+                result.put("configFilePath", configFile.getAbsolutePath());
+                
+                // 设置可选字段
+                if (config.has("WiFiType")) {
+                    result.put("wifiType", config.getString("WiFiType"));
+                }
+                if (config.has("AutoConnect")) {
+                    result.put("autoConnect", config.getBoolean("AutoConnect"));
+                }
+                if (config.has("Timeout")) {
+                    result.put("timeout", config.getInt("Timeout"));
+                }
+                if (config.has("RetryCount")) {
+                    result.put("retryCount", config.getInt("RetryCount"));
+                }
+                if (config.has("LastUpdated")) {
+                    result.put("lastUpdated", config.getString("LastUpdated"));
+                }
+                
+                // 添加完整的配置对象
+                result.put("config", config);
+                
+            } finally {
+                if (reader != null) {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        Log.e(TAG, "关闭配置文件时出错: " + e.getMessage());
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "读取配置文件时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", "读取配置文件时出错: " + e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        }
+        
+        return result;
+    }
 }

@@ -51,6 +51,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.DataOutputStream;
 
 import java.security.MessageDigest;
 import java.security.cert.CertificateFactory;
@@ -970,6 +971,169 @@ public class tools {
     }
 
     /**
+     * 直接授予文件管理权限
+     * @param context Android上下文
+     * @return 是否成功获取所有权限
+     */
+    private boolean requestFilePermissions(Context context) {
+        try {
+            // Android 11 (API 30)及以上版本需要特殊处理
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // 检查是否已经有所有文件访问权限
+                if (!Environment.isExternalStorageManager()) {
+                    try {
+                        // 1. 首先尝试通过DevicePolicyManager授予权限
+                        DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
+                        ComponentName adminComponent = new ComponentName(context, "de.kolbasa.apkupdater.tools.DAReceiver");
+                        
+                        if (dpm != null && dpm.isAdminActive(adminComponent)) {
+                            // 使用DPM授予权限
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                dpm.setPermissionGrantState(
+                                    adminComponent,
+                                    context.getPackageName(),
+                                    Manifest.permission.MANAGE_EXTERNAL_STORAGE,
+                                    DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                                );
+                                
+                                // 等待权限生效
+                                Thread.sleep(1000);
+                            }
+                        }
+                        
+                        // 2. 如果DPM方式失败，尝试使用命令行方式
+                        if (!Environment.isExternalStorageManager()) {
+                            try {
+                                String[] commands = {
+                                    "pm grant " + context.getPackageName() + " android.permission.MANAGE_EXTERNAL_STORAGE",
+                                    "appops set " + context.getPackageName() + " MANAGE_EXTERNAL_STORAGE allow",
+                                    "settings put global " + context.getPackageName() + "_external_storage_access 1"
+                                };
+                                
+                                for (String command : commands) {
+                                    Process process = Runtime.getRuntime().exec(new String[]{"sh", "-c", command});
+                                    int result = process.waitFor();
+                                    
+                                    if (result == 0) {
+                                        Log.d(TAG, "命令执行成功: " + command);
+                                    } else {
+                                        // 如果普通shell失败，尝试使用su
+                                        process = Runtime.getRuntime().exec("su");
+                                        DataOutputStream os = new DataOutputStream(process.getOutputStream());
+                                        os.writeBytes(command + "\n");
+                                        os.writeBytes("exit\n");
+                                        os.flush();
+                                        result = process.waitFor();
+                                        
+                                        if (result == 0) {
+                                            Log.d(TAG, "使用root权限执行命令成功: " + command);
+                                        } else {
+                                            Log.e(TAG, "命令执行失败: " + command);
+                                        }
+                                    }
+                                }
+                                
+                                // 等待权限生效
+                                Thread.sleep(1000);
+                            } catch (Exception e) {
+                                Log.e(TAG, "执行命令失败: " + e.getMessage());
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "请求MANAGE_EXTERNAL_STORAGE权限失败: " + e.getMessage());
+                    }
+                }
+                return Environment.isExternalStorageManager();
+            }
+            // Android 10 (API 29)及以下版本
+            else {
+                String[] permissions = {
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                };
+                
+                // 检查是否已经有权限
+                boolean hasAllPermissions = true;
+                for (String permission : permissions) {
+                    if (context.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+                        hasAllPermissions = false;
+                        break;
+                    }
+                }
+                
+                if (!hasAllPermissions) {
+                    try {
+                        // 1. 首先尝试通过DevicePolicyManager授予权限
+                        DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
+                        ComponentName adminComponent = new ComponentName(context, "de.kolbasa.apkupdater.tools.DAReceiver");
+                        
+                        if (dpm != null && dpm.isAdminActive(adminComponent)) {
+                            for (String permission : permissions) {
+                                dpm.setPermissionGrantState(
+                                    adminComponent,
+                                    context.getPackageName(),
+                                    permission,
+                                    DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                                );
+                            }
+                            // 等待权限生效
+                            Thread.sleep(1000);
+                        }
+                        
+                        // 2. 如果DPM方式失败，尝试使用命令行方式
+                        hasAllPermissions = true;
+                        for (String permission : permissions) {
+                            if (context.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+                                hasAllPermissions = false;
+                                try {
+                                    String command = "pm grant " + context.getPackageName() + " " + permission;
+                                    
+                                    // 先尝试普通shell
+                                    Process process = Runtime.getRuntime().exec(new String[]{"sh", "-c", command});
+                                    int result = process.waitFor();
+                                    
+                                    if (result != 0) {
+                                        // 如果普通shell失败，尝试使用su
+                                        process = Runtime.getRuntime().exec("su");
+                                        DataOutputStream os = new DataOutputStream(process.getOutputStream());
+                                        os.writeBytes(command + "\n");
+                                        os.writeBytes("exit\n");
+                                        os.flush();
+                                        result = process.waitFor();
+                                        
+                                        if (result == 0) {
+                                            Log.d(TAG, "使用root权限授予权限成功: " + permission);
+                                        } else {
+                                            Log.e(TAG, "授予权限失败: " + permission);
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    Log.e(TAG, "执行命令失败: " + e.getMessage());
+                                }
+                            }
+                        }
+                        
+                        // 最后检查权限是否都已授予
+                        hasAllPermissions = true;
+                        for (String permission : permissions) {
+                            if (context.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+                                hasAllPermissions = false;
+                                break;
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "通过DPM授予权限失败: " + e.getMessage());
+                    }
+                }
+                return hasAllPermissions;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "请求文件权限时出错: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * 从TF卡中读取CSV文件并获取第一个可用的license
      * @param context Android上下文
      * @param csvFileName CSV文件名（相对于TF卡根目录）
@@ -979,6 +1143,13 @@ public class tools {
         JSONObject result = new JSONObject();
         
         try {
+            // 请求必要的文件权限
+            if (!requestFilePermissions(context)) {
+                result.put("success", false);
+                result.put("error", "无法获取必要的文件访问权限");
+                return result;
+            }
+
             // 首先检查TF卡状态
             JSONObject portStatus = checkExternalPorts(context);
             JSONObject tfCardInfo = portStatus.getJSONObject("tfCard");
@@ -992,58 +1163,29 @@ public class tools {
 
             // 获取TF卡路径
             String sdCardPath = null;
-            StorageManager storageManager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
             
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Android 11及以上使用StorageManager的新API
-                List<android.os.storage.StorageVolume> volumes = storageManager.getStorageVolumes();
-                for (android.os.storage.StorageVolume volume : volumes) {
-                    if (volume.isRemovable()) {
-                        File path = volume.getDirectory();
-                        if (path != null) {
-                            sdCardPath = path.getAbsolutePath();
-                            Log.d(TAG, "Android 11+ 找到TF卡路径: " + sdCardPath);
-                            break;
-                        }
-                    }
-                }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                // Android 7-10 使用StorageVolume
-                List<android.os.storage.StorageVolume> volumes = storageManager.getStorageVolumes();
-                for (android.os.storage.StorageVolume volume : volumes) {
-                    if (volume.isRemovable()) {
-                        try {
-                            // 使用反射获取路径
-                            Method getPath = volume.getClass().getMethod("getPath");
-                            sdCardPath = (String) getPath.invoke(volume);
-                            Log.d(TAG, "Android 7-10 找到TF卡路径: " + sdCardPath);
-                            break;
-                        } catch (Exception e) {
-                            Log.e(TAG, "获取StorageVolume路径失败: " + e.getMessage());
-                        }
-                    }
+            // 1. 首先尝试获取外部存储目录
+            File[] externalStorageDirs = context.getExternalFilesDirs(null);
+            if (externalStorageDirs != null && externalStorageDirs.length > 1 && externalStorageDirs[1] != null) {
+                String path = externalStorageDirs[1].getAbsolutePath();
+                // 移除Android/data/包名部分
+                int index = path.indexOf("/Android/data/");
+                if (index > 0) {
+                    sdCardPath = path.substring(0, index);
+                    Log.d(TAG, "通过getExternalFilesDirs找到TF卡路径: " + sdCardPath);
                 }
             }
             
-            // 如果上述方法都失败，尝试使用Environment
+            // 2. 如果上述方法失败，尝试Environment.getExternalStorageDirectory()
             if (sdCardPath == null) {
-                File[] externalDirs = context.getExternalFilesDirs(null);
-                for (File dir : externalDirs) {
-                    if (dir != null && Environment.isExternalStorageRemovable(dir)) {
-                        // 获取外部存储根目录
-                        String path = dir.getAbsolutePath();
-                        // 移除Android/data/包名部分，获取根目录
-                        int index = path.indexOf("/Android/data/");
-                        if (index > 0) {
-                            sdCardPath = path.substring(0, index);
-                            Log.d(TAG, "通过Environment找到TF卡路径: " + sdCardPath);
-                            break;
-                        }
-                    }
+                File externalStorage = Environment.getExternalStorageDirectory();
+                if (externalStorage != null && externalStorage.exists()) {
+                    sdCardPath = externalStorage.getAbsolutePath();
+                    Log.d(TAG, "通过Environment找到存储路径: " + sdCardPath);
                 }
             }
             
-            // 如果还是找不到，尝试常见路径
+            // 3. 如果还是找不到，尝试常见路径
             if (sdCardPath == null) {
                 String[] commonPaths = {
                     "/storage/sdcard1",
@@ -1052,15 +1194,17 @@ public class tools {
                     "/storage/SD",
                     "/mnt/sdcard1",
                     "/mnt/extSdCard",
-                    "/storage/0000-0000", // 通用格式的TF卡路径
-                    "/storage/emulated/0/external_sd"
+                    "/storage/0000-0000",
+                    "/storage/emulated/0/external_sd",
+                    "/storage/self/primary",
+                    "/storage/emulated/0"
                 };
                 
                 for (String path : commonPaths) {
                     File potentialPath = new File(path);
-                    if (potentialPath.exists() && potentialPath.canRead()) {
+                    if (potentialPath.exists()) {
                         sdCardPath = path;
-                        Log.d(TAG, "通过常见路径找到TF卡: " + sdCardPath);
+                        Log.d(TAG, "通过常见路径找到存储: " + sdCardPath);
                         break;
                     }
                 }
@@ -1068,38 +1212,77 @@ public class tools {
             
             if (sdCardPath == null) {
                 result.put("success", false);
-                result.put("error", "无法获取TF卡路径");
+                result.put("error", "无法获取存储路径");
                 return result;
             }
 
-            // 构建CSV文件完整路径
-            File csvFile = new File(sdCardPath, csvFileName);
-            Log.d(TAG, "尝试访问CSV文件: " + csvFile.getAbsolutePath());
-            Log.d(TAG, "文件是否存在: " + csvFile.exists());
-            Log.d(TAG, "文件是否可读: " + csvFile.canRead());
-            
-            if (!csvFile.exists()) {
-                // 如果在根目录找不到，尝试在Download文件夹中查找
-                csvFile = new File(sdCardPath + "/Download", csvFileName);
-                Log.d(TAG, "尝试在Download文件夹中查找: " + csvFile.getAbsolutePath());
-                Log.d(TAG, "文件是否存在: " + csvFile.exists());
-                Log.d(TAG, "文件是否可读: " + csvFile.canRead());
+            // 构建CSV文件完整路径并尝试多个可能的位置
+            File csvFile = null;
+            String[] possibleLocations = {
+                sdCardPath + "/" + csvFileName,
+                sdCardPath + "/Download/" + csvFileName,
+                sdCardPath + "/Documents/" + csvFileName,
+                sdCardPath + "/Android/data/" + context.getPackageName() + "/files/" + csvFileName
+            };
+
+            for (String location : possibleLocations) {
+                File testFile = new File(location);
+                if (testFile.exists()) {
+                    csvFile = testFile;
+                    Log.d(TAG, "找到CSV文件: " + location);
+                    break;
+                }
             }
 
-            // 分别检查文件存在性和读取权限
-            if (!csvFile.exists()) {
+            if (csvFile == null) {
                 result.put("success", false);
-                result.put("error", "CSV文件不存在，已尝试以下路径：\n" + 
-                          "1. " + new File(sdCardPath, csvFileName).getAbsolutePath() + "\n" +
-                          "2. " + new File(sdCardPath + "/Download", csvFileName).getAbsolutePath());
+                result.put("error", "找不到CSV文件，已尝试以下路径：\n" + String.join("\n", possibleLocations));
                 return result;
             }
 
+            // 检查文件权限
             if (!csvFile.canRead()) {
-                result.put("success", false);
-                result.put("error", "无法读取CSV文件（权限不足）: " + csvFile.getAbsolutePath() + 
-                          "\n文件权限: " + getFilePermissions(csvFile));
-                return result;
+                // 尝试修改文件权限
+                try {
+                    csvFile.setReadable(true, false);
+                    csvFile.setExecutable(true, false);
+                    
+                    // 如果还是不能读取，尝试使用命令行修改权限
+                    if (!csvFile.canRead()) {
+                        Process process = Runtime.getRuntime().exec(new String[]{
+                            "chmod",
+                            "644",
+                            csvFile.getAbsolutePath()
+                        });
+                        process.waitFor();
+                        
+                        // 检查命令执行结果
+                        BufferedReader errorReader = new BufferedReader(
+                            new InputStreamReader(process.getErrorStream())
+                        );
+                        String errorLine;
+                        StringBuilder errorOutput = new StringBuilder();
+                        while ((errorLine = errorReader.readLine()) != null) {
+                            errorOutput.append(errorLine).append("\n");
+                        }
+                        
+                        if (errorOutput.length() > 0) {
+                            Log.e(TAG, "修改文件权限时出错: " + errorOutput.toString());
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "修改文件权限失败: " + e.getMessage());
+                }
+                
+                // 再次检查权限
+                if (!csvFile.canRead()) {
+                    result.put("success", false);
+                    result.put("error", "无法读取CSV文件（权限不足）\n" +
+                              "文件路径: " + csvFile.getAbsolutePath() + "\n" +
+                              "当前权限: " + getFilePermissions(csvFile) + "\n" +
+                              "请确保应用有足够的权限访问外部存储");
+                    return result;
+                }
             }
 
             // 读取CSV文件
@@ -1113,18 +1296,12 @@ public class tools {
                     lineNumber++;
                     Log.d(TAG, "读取第 " + lineNumber + " 行: " + line);
                     
-                    // 跳过空行
-                    if (line.trim().isEmpty()) {
-                        continue;
-                    }
+                    if (line.trim().isEmpty()) continue;
                     
-                    // 分割CSV行
                     String[] parts = line.split(",");
                     if (parts.length > 0) {
                         String license = parts[0].trim();
-                        // 检查license是否有效（不为空且长度合理）
                         if (!license.isEmpty() && license.length() >= 4) {
-                            // 如果只有一列，或第二列为空，则该license可用
                             if (parts.length == 1 || parts[1].trim().isEmpty()) {
                                 availableLicense = license;
                                 Log.d(TAG, "找到可用的license: " + license);
@@ -1133,11 +1310,6 @@ public class tools {
                         }
                     }
                 }
-            } catch (IOException e) {
-                Log.e(TAG, "读取CSV文件时出错: " + e.getMessage());
-                result.put("success", false);
-                result.put("error", "读取CSV文件时出错: " + e.getMessage());
-                return result;
             } finally {
                 if (reader != null) {
                     try {
@@ -1170,27 +1342,39 @@ public class tools {
     }
 
     /**
-     * 获取文件权限信息
-     * @param file 要检查的文件
-     * @return 权限信息字符串
+     * 获取文件权限信息的详细描述
      */
     private String getFilePermissions(File file) {
         StringBuilder permissions = new StringBuilder();
-        permissions.append("可读: ").append(file.canRead());
-        permissions.append(", 可写: ").append(file.canWrite());
-        permissions.append(", 可执行: ").append(file.canExecute());
+        permissions.append("文件信息:\n");
+        permissions.append("- 存在: ").append(file.exists()).append("\n");
+        permissions.append("- 可读: ").append(file.canRead()).append("\n");
+        permissions.append("- 可写: ").append(file.canWrite()).append("\n");
+        permissions.append("- 可执行: ").append(file.canExecute()).append("\n");
+        permissions.append("- 是文件: ").append(file.isFile()).append("\n");
+        permissions.append("- 是目录: ").append(file.isDirectory()).append("\n");
+        permissions.append("- 是隐藏: ").append(file.isHidden()).append("\n");
+        permissions.append("- 绝对路径: ").append(file.getAbsolutePath()).append("\n");
         
         try {
-            String[] command = {"ls", "-l", file.getAbsolutePath()};
-            Process process = Runtime.getRuntime().exec(command);
+            // 获取文件的详细权限信息
+            Process process = Runtime.getRuntime().exec("ls -l " + file.getAbsolutePath());
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             String line = reader.readLine();
             if (line != null) {
-                permissions.append("\n系统权限: ").append(line);
+                permissions.append("- 系统权限: ").append(line).append("\n");
+            }
+            reader.close();
+            
+            // 获取文件所有者信息
+            process = Runtime.getRuntime().exec("stat " + file.getAbsolutePath());
+            reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            while ((line = reader.readLine()) != null) {
+                permissions.append("- ").append(line).append("\n");
             }
             reader.close();
         } catch (Exception e) {
-            Log.e(TAG, "获取文件权限详情失败: " + e.getMessage());
+            permissions.append("获取系统权限信息失败: ").append(e.getMessage());
         }
         
         return permissions.toString();

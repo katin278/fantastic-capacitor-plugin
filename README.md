@@ -1,4 +1,4 @@
-# Fantastic Capacitor Plugin
+# Fantastic Capacitor Plugin 6
 
 一个功能强大的Capacitor插件，提供了丰富的设备硬件检测和系统功能。
 

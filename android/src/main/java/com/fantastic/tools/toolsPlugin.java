@@ -696,4 +696,15 @@ public class toolsPlugin extends Plugin {
             call.reject("获取硬件信息失败: " + e.getMessage());
         }
     }
+
+    @PluginMethod
+    public void getDeviceInfo(PluginCall call) {
+        try {
+            JSONObject result = implementation.getDeviceInfo(getContext());
+            JSObject ret = JSObject.fromJSONObject(result);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("读取设备信息时出错: " + e.getMessage());
+        }
+    }
 }

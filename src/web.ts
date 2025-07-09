@@ -12,7 +12,8 @@ import type {
   HardwareCheckResult,
   HardwareInfoResult,
   toolsPlugin,
-  WifiConfigResult
+  WifiConfigResult,
+  DeviceInfoResult
 } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
@@ -408,6 +409,13 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
         RetryCount: 0,
         LastUpdated: ""
       }
+    };
+  }
+
+  async getDeviceInfo(): Promise<DeviceInfoResult> {
+    return {
+      success: false,
+      error: "Web平台不支持读取设备信息文件。请在Android设备上使用此功能。"
     };
   }
 }

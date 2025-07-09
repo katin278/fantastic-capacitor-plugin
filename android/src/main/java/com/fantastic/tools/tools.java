@@ -2414,4 +2414,188 @@ public class tools {
         
         return result;
     }
+
+    /**
+     * 执行Shell命令
+     * @param cmd 要执行的命令
+     * @return 命令执行结果
+     */
+    private String execCommand(String cmd) {
+        String result = "";
+        DataOutputStream dos = null;
+        DataInputStream dis = null;
+        Process p = null;
+
+        try {
+            p = Runtime.getRuntime().exec("sh");
+            dos = new DataOutputStream(p.getOutputStream());
+            dis = new DataInputStream(p.getInputStream());
+
+            dos.writeBytes(cmd);
+            dos.flush();
+            dos.writeBytes("exit\n");
+            dos.flush();
+            String line = null;
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(dis));
+            while ((line = br.readLine()) != null) {
+                result += line;
+            }
+            p.waitFor();
+        } catch (Exception e) {
+            Log.e(TAG, "执行命令时出错: " + e.getMessage());
+        } finally {
+            if (dos != null) {
+                try {
+                    dos.close();
+                } catch (IOException e) {
+                    Log.e(TAG, "关闭输出流时出错: " + e.getMessage());
+                }
+            }
+            if (dis != null) {
+                try {
+                    dis.close();
+                } catch (IOException e) {
+                    Log.e(TAG, "关闭输入流时出错: " + e.getMessage());
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 检查命令执行是否成功
+     * @param result 命令执行结果
+     * @return 是否成功
+     */
+    private boolean isCommandSuccessful(String result) {
+        return result != null && !result.contains("Error") && !result.contains("Permission denied");
+    }
+
+    /**
+     * 检查vendor目录是否可读
+     * @return 是否可读
+     */
+    private boolean isVendorReadable() {
+        return new File("/vendor/device_info.json").canRead();
+    }
+
+    /**
+     * 将设备信息文件拷贝到应用可访问的位置
+     * @param context Android上下文
+     * @return 拷贝结果，成功返回目标文件路径，失败返回null
+     */
+    private String copyDeviceInfoToAccessibleLocation(Context context) {
+        String destPath = context.getFilesDir() + "/device_info.json";
+        Log.d(TAG, "正在将 /vendor/device_info.json 拷贝到 " + destPath);
+
+        try {
+            Process process = Runtime.getRuntime().exec("su");
+            DataOutputStream outputStream = new DataOutputStream(process.getOutputStream());
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+            // 确保目标目录存在
+            outputStream.writeBytes("mkdir -p " + new File(destPath).getParent() + "\n");
+            outputStream.flush();
+            
+            // 拷贝文件
+            outputStream.writeBytes("cp /vendor/device_info.json " + destPath + "\n");
+            outputStream.flush();
+            
+            // 修改权限确保应用可以读取
+            outputStream.writeBytes("chmod 644 " + destPath + "\n");
+            outputStream.flush();
+            
+            outputStream.writeBytes("exit\n");
+            outputStream.flush();
+
+            String line;
+            StringBuilder result = new StringBuilder();
+            while ((line = reader.readLine()) != null) {
+                result.append(line).append("\n");
+            }
+
+            process.waitFor();
+            
+            // 检查文件是否成功拷贝
+            if (new File(destPath).exists() && new File(destPath).canRead()) {
+                Log.d(TAG, "文件成功拷贝到 " + destPath);
+                return destPath;
+            } else {
+                Log.e(TAG, "文件拷贝失败: " + result.toString());
+                return null;
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "拷贝过程出错", e);
+            return null;
+        }
+    }
+
+    /**
+     * 读取设备信息文件
+     * @param context Android上下文
+     * @return 包含设备信息的JSON对象
+     */
+    public JSONObject getDeviceInfo(Context context) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            // 首先尝试直接读取
+            File deviceInfoFile = new File("/vendor/device_info.json");
+            String filePath = "/vendor/device_info.json";
+            
+            // 如果无法直接读取，尝试拷贝到应用目录
+            if (!deviceInfoFile.canRead()) {
+                Log.d(TAG, "无法直接读取设备信息文件，尝试拷贝到应用目录");
+                String newPath = copyDeviceInfoToAccessibleLocation(context);
+                if (newPath != null) {
+                    deviceInfoFile = new File(newPath);
+                    filePath = newPath;
+                } else {
+                    result.put("success", false);
+                    result.put("error", "无法访问设备信息文件");
+                    return result;
+                }
+            }
+
+            // 读取文件内容
+            StringBuilder jsonContent = new StringBuilder();
+            BufferedReader reader = null;
+            try {
+                reader = new BufferedReader(new FileReader(deviceInfoFile));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    jsonContent.append(line);
+                }
+                
+                // 解析JSON内容
+                JSONObject deviceInfo = new JSONObject(jsonContent.toString());
+                
+                result.put("success", true);
+                result.put("deviceInfo", deviceInfo);
+                result.put("filePath", filePath);
+                
+            } finally {
+                if (reader != null) {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        Log.e(TAG, "关闭文件时出错: " + e.getMessage());
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "读取设备信息时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", "读取设备信息时出错: " + e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        }
+        
+        return result;
+    }
 }

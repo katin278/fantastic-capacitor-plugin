@@ -310,6 +310,15 @@ export interface WifiConfigResult {
   };
 }
 
+export interface DeviceInfoResult {
+  success: boolean;
+  error?: string;
+  deviceInfo?: {
+    [key: string]: any;
+  };
+  filePath?: string;
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -620,4 +629,23 @@ export interface toolsPlugin {
   getWifiNameFromConfig(options: {
     fileName: string;
   }): Promise<WifiConfigResult>;
+
+  /**
+   * 读取 /vendor/device_info.json 文件内容
+   * 
+   * 该方法会尝试以下步骤：
+   * 1. 直接读取 /vendor/device_info.json
+   * 2. 如果无法直接读取，尝试将文件拷贝到应用可访问的位置
+   * 3. 读取拷贝后的文件内容
+   * 
+   * @returns 包含设备信息的结果对象
+   * @example
+   * const result = await tools.getDeviceInfo();
+   * if (result.success) {
+   *   console.log('设备信息:', result.deviceInfo);
+   * } else {
+   *   console.error('读取失败:', result.error);
+   * }
+   */
+  getDeviceInfo(): Promise<DeviceInfoResult>;
 }

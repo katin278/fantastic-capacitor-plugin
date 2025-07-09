@@ -319,6 +319,13 @@ export interface DeviceInfoResult {
   filePath?: string;
 }
 
+export interface WriteDeviceInfoResult {
+  success: boolean;
+  error?: string;
+  filePath?: string;
+  isNewFile?: boolean;  // 是否是新创建的文件
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -648,4 +655,35 @@ export interface toolsPlugin {
    * }
    */
   getDeviceInfo(): Promise<DeviceInfoResult>;
+
+  /**
+   * 在vendor目录下创建或更新device_info.json文件
+   * 
+   * 如果文件已存在，则只更新内容；如果不存在，则创建新文件。
+   * 该方法需要root权限。
+   * 
+   * @param options.deviceInfo 要写入的设备信息对象
+   * @returns 操作结果
+   * @example
+   * const result = await tools.writeDeviceInfo({
+   *   deviceInfo: {
+   *     model: "设备型号",
+   *     serialNumber: "序列号",
+   *     manufacturer: "制造商",
+   *     // ... 其他设备信息
+   *   }
+   * });
+   * if (result.success) {
+   *   console.log('写入成功');
+   *   console.log('文件路径:', result.filePath);
+   *   console.log('是否新文件:', result.isNewFile);
+   * } else {
+   *   console.error('写入失败:', result.error);
+   * }
+   */
+  writeDeviceInfo(options: {
+    deviceInfo: {
+      [key: string]: any;
+    };
+  }): Promise<WriteDeviceInfoResult>;
 }

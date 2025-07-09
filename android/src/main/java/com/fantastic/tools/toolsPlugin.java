@@ -707,4 +707,25 @@ public class toolsPlugin extends Plugin {
             call.reject("读取设备信息时出错: " + e.getMessage());
         }
     }
+
+    @PluginMethod
+    public void writeDeviceInfo(PluginCall call) {
+        JSObject deviceInfo = call.getObject("deviceInfo");
+        if (deviceInfo == null) {
+            call.reject("设备信息不能为空");
+            return;
+        }
+
+        try {
+            // 将JSObject转换为JSONObject
+            JSONObject jsonDeviceInfo = new JSONObject(deviceInfo.toString());
+            
+            // 调用实现方法
+            JSONObject result = implementation.writeDeviceInfo(getContext(), jsonDeviceInfo);
+            JSObject ret = JSObject.fromJSONObject(result);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("写入设备信息时出错: " + e.getMessage());
+        }
+    }
 }

@@ -13,7 +13,8 @@ import type {
   HardwareInfoResult,
   toolsPlugin,
   WifiConfigResult,
-  DeviceInfoResult
+  DeviceInfoResult,
+  WriteDeviceInfoResult
 } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
@@ -416,6 +417,13 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     return {
       success: false,
       error: "Web平台不支持读取设备信息文件。请在Android设备上使用此功能。"
+    };
+  }
+
+  async writeDeviceInfo(_options: { deviceInfo: { [key: string]: any } }): Promise<WriteDeviceInfoResult> {
+    return {
+      success: false,
+      error: "Web平台不支持写入设备信息文件。请在Android设备上使用此功能。"
     };
   }
 }

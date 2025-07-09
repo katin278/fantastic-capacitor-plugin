@@ -45,13 +45,15 @@ import java.util.Map;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.lang.reflect.Method;
 import android.content.BroadcastReceiver;
 import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.DataOutputStream;
 
 import java.security.MessageDigest;
 import java.security.cert.CertificateFactory;
@@ -1592,6 +1594,7 @@ public class tools {
             java.text.SimpleDateFormat iso8601Format = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
             String iso8601DateTime = iso8601Format.format(currentDate);
             
+            
             // 构建返回结果
             result.put("success", true);
             result.put("currentDateTime", formattedDateTime);
@@ -2591,6 +2594,102 @@ public class tools {
             try {
                 result.put("success", false);
                 result.put("error", "读取设备信息时出错: " + e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        }
+        
+        return result;
+    }
+
+    /**
+     * 在vendor目录下创建或更新device_info.json文件
+     * @param context Android上下文
+     * @param deviceInfo 要写入的设备信息
+     * @return 操作结果
+     */
+    public JSONObject writeDeviceInfo(Context context, JSONObject deviceInfo) {
+        JSONObject result = new JSONObject();
+        final String VENDOR_FILE_PATH = "/vendor/device_info.json";
+        
+        try {
+            // 检查文件是否已存在
+            File deviceInfoFile = new File(VENDOR_FILE_PATH);
+            boolean isNewFile = !deviceInfoFile.exists();
+            
+            // 首先将JSON内容写入临时文件
+            File tempFile = new File(context.getCacheDir(), "temp_device_info.json");
+            FileWriter writer = new FileWriter(tempFile);
+            writer.write(deviceInfo.toString(4)); // 使用4个空格缩进
+            writer.close();
+            
+            // 准备使用root权限执行命令
+            Process process = Runtime.getRuntime().exec("su");
+            DataOutputStream outputStream = new DataOutputStream(process.getOutputStream());
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+            // 重新挂载vendor分区为可写
+            outputStream.writeBytes("mount -o remount,rw /vendor\n");
+            outputStream.flush();
+            
+            // 如果是新文件，先创建
+            if (isNewFile) {
+                outputStream.writeBytes("touch " + VENDOR_FILE_PATH + "\n");
+                outputStream.flush();
+            }
+            
+            // 拷贝临时文件到vendor目录
+            outputStream.writeBytes("cat " + tempFile.getAbsolutePath() + " > " + VENDOR_FILE_PATH + "\n");
+            outputStream.flush();
+            
+            // 设置适当的权限
+            outputStream.writeBytes("chmod 644 " + VENDOR_FILE_PATH + "\n");
+            outputStream.flush();
+            
+            // 重新挂载vendor分区为只读（安全考虑）
+            outputStream.writeBytes("mount -o remount,ro /vendor\n");
+            outputStream.flush();
+            
+            outputStream.writeBytes("exit\n");
+            outputStream.flush();
+
+            // 读取命令输出
+            StringBuilder output = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+            
+            // 读取错误输出
+            StringBuilder error = new StringBuilder();
+            while ((line = errorReader.readLine()) != null) {
+                error.append(line).append("\n");
+            }
+
+            // 等待命令执行完成
+            int exitValue = process.waitFor();
+            
+            // 删除临时文件
+            tempFile.delete();
+
+            // 验证文件是否成功创建/更新
+            if (exitValue == 0 && new File(VENDOR_FILE_PATH).exists()) {
+                result.put("success", true);
+                result.put("filePath", VENDOR_FILE_PATH);
+                result.put("isNewFile", isNewFile);
+                Log.d(TAG, "设备信息" + (isNewFile ? "创建" : "更新") + "成功");
+            } else {
+                result.put("success", false);
+                result.put("error", "命令执行失败。错误信息：" + error.toString());
+                Log.e(TAG, "写入设备信息失败：" + error.toString());
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "写入设备信息时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", "写入设备信息时出错: " + e.getMessage());
             } catch (JSONException je) {
                 Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
             }

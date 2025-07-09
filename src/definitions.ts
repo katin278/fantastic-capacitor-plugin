@@ -326,6 +326,17 @@ export interface WriteDeviceInfoResult {
   isNewFile?: boolean;  // 是否是新创建的文件
 }
 
+export interface UpdateLicenseResult {
+  success: boolean;
+  error?: string;
+  license?: {
+    license: string;
+    status: string;
+    // 其他可能的字段
+    [key: string]: any;
+  };
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -686,4 +697,29 @@ export interface toolsPlugin {
       [key: string]: any;
     };
   }): Promise<WriteDeviceInfoResult>;
+
+  /**
+   * 修改SD卡中license.csv文件中指定license的状态
+   * 
+   * @param options.fileName CSV文件名（相对于TF卡根目录）
+   * @param options.license 要修改的license
+   * @param options.status 新的状态值
+   * @returns 修改结果，成功时返回更新后的license信息
+   * @example
+   * const result = await tools.updateLicenseStatus({
+   *   fileName: "license.csv",
+   *   license: "XXXX-XXXX-XXXX-XXXX",
+   *   status: "used"
+   * });
+   * if (result.success) {
+   *   console.log('License信息:', result.license);
+   * } else {
+   *   console.error('修改失败:', result.error);
+   * }
+   */
+  updateLicenseStatus(options: {
+    fileName: string;
+    license: string;
+    status: string;
+  }): Promise<UpdateLicenseResult>;
 }

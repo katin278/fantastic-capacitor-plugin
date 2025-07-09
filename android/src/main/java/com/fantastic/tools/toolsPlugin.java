@@ -728,4 +728,32 @@ public class toolsPlugin extends Plugin {
             call.reject("写入设备信息时出错: " + e.getMessage());
         }
     }
+
+    @PluginMethod
+    public void updateLicenseStatus(PluginCall call) {
+        String fileName = call.getString("fileName");
+        String license = call.getString("license");
+        String status = call.getString("status");
+
+        if (fileName == null || fileName.isEmpty()) {
+            call.reject("文件名不能为空");
+            return;
+        }
+        if (license == null || license.isEmpty()) {
+            call.reject("license不能为空");
+            return;
+        }
+        if (status == null || status.isEmpty()) {
+            call.reject("状态不能为空");
+            return;
+        }
+
+        try {
+            JSONObject result = implementation.updateLicenseStatus(getContext(), fileName, license, status);
+            JSObject ret = JSObject.fromJSONObject(result);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("修改license状态时出错: " + e.getMessage());
+        }
+    }
 }

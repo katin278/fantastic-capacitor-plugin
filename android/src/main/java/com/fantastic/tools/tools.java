@@ -2697,4 +2697,243 @@ public class tools {
         
         return result;
     }
+
+    /**
+     * 修改SD卡中license.csv文件中指定license的状态
+     * @param context Android上下文
+     * @param csvFileName CSV文件名
+     * @param licenseKey 要修改的license
+     * @param newStatus 新的状态值
+     * @return 修改结果
+     */
+    public JSONObject updateLicenseStatus(Context context, String csvFileName, String licenseKey, String newStatus) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            // 请求必要的文件权限
+            if (!requestFilePermissions(context)) {
+                result.put("success", false);
+                result.put("error", "无法获取必要的文件访问权限");
+                return result;
+            }
+
+            // 首先检查TF卡状态
+            JSONObject portStatus = checkExternalPorts(context);
+            JSONObject tfCardInfo = portStatus.getJSONObject("tfCard");
+            
+            if (!tfCardInfo.optBoolean("isAvailable", false) || 
+                !tfCardInfo.optBoolean("isMounted", false)) {
+                result.put("success", false);
+                result.put("error", "TF卡不可用或未挂载");
+                return result;
+            }
+
+            // 获取TF卡路径
+            String sdCardPath = null;
+            
+            // 1. 首先尝试获取外部存储目录
+            File[] externalStorageDirs = context.getExternalFilesDirs(null);
+            if (externalStorageDirs != null && externalStorageDirs.length > 1 && externalStorageDirs[1] != null) {
+                String path = externalStorageDirs[1].getAbsolutePath();
+                // 移除Android/data/包名部分
+                int index = path.indexOf("/Android/data/");
+                if (index > 0) {
+                    sdCardPath = path.substring(0, index);
+                    Log.d(TAG, "通过getExternalFilesDirs找到TF卡路径: " + sdCardPath);
+                }
+            }
+            
+            // 2. 如果上述方法失败，尝试Environment.getExternalStorageDirectory()
+            if (sdCardPath == null) {
+                File externalStorage = Environment.getExternalStorageDirectory();
+                if (externalStorage != null && externalStorage.exists()) {
+                    sdCardPath = externalStorage.getAbsolutePath();
+                    Log.d(TAG, "通过Environment找到存储路径: " + sdCardPath);
+                }
+            }
+            
+            // 3. 如果还是找不到，尝试常见路径
+            if (sdCardPath == null) {
+                String[] commonPaths = {
+                    "/storage/sdcard1",
+                    "/storage/extSdCard",
+                    "/storage/external_SD",
+                    "/storage/SD",
+                    "/mnt/sdcard1",
+                    "/mnt/extSdCard",
+                    "/storage/0000-0000",
+                    "/storage/emulated/0/external_sd",
+                    "/storage/self/primary",
+                    "/storage/emulated/0"
+                };
+                
+                for (String path : commonPaths) {
+                    File potentialPath = new File(path);
+                    if (potentialPath.exists()) {
+                        sdCardPath = path;
+                        Log.d(TAG, "通过常见路径找到存储: " + sdCardPath);
+                        break;
+                    }
+                }
+            }
+            
+            if (sdCardPath == null) {
+                result.put("success", false);
+                result.put("error", "无法获取存储路径");
+                return result;
+            }
+
+            // 构建CSV文件完整路径并尝试多个可能的位置
+            File csvFile = null;
+            String[] possibleLocations = {
+                sdCardPath + "/" + csvFileName,
+                sdCardPath + "/Download/" + csvFileName,
+                sdCardPath + "/Documents/" + csvFileName,
+                sdCardPath + "/Android/data/" + context.getPackageName() + "/files/" + csvFileName
+            };
+
+            for (String location : possibleLocations) {
+                File testFile = new File(location);
+                if (testFile.exists()) {
+                    csvFile = testFile;
+                    Log.d(TAG, "找到CSV文件: " + location);
+                    break;
+                }
+            }
+
+            if (csvFile == null) {
+                result.put("success", false);
+                result.put("error", "找不到CSV文件，已尝试以下路径：\n" + String.join("\n", possibleLocations));
+                return result;
+            }
+
+            // 创建临时文件
+            File tempFile = new File(context.getCacheDir(), "temp_" + csvFileName);
+            boolean found = false;
+            JSONObject licenseInfo = new JSONObject();
+            
+            // 读取CSV文件并修改指定license的状态
+            BufferedReader reader = null;
+            FileWriter writer = null;
+            try {
+                reader = new BufferedReader(new FileReader(csvFile));
+                writer = new FileWriter(tempFile);
+                
+                String line;
+                String header = null;
+                while ((line = reader.readLine()) != null) {
+                    // 保存标题行
+                    if (header == null) {
+                        header = line;
+                        writer.write(line + "\n");
+                        continue;
+                    }
+                    
+                    // 解析CSV行
+                    String[] columns = line.split(",", -1);
+                    if (columns.length >= 2) {
+                        String currentLicense = columns[0].trim();
+                        
+                        // 找到匹配的license
+                        if (currentLicense.equals(licenseKey)) {
+                            found = true;
+                            // 更新状态
+                            columns[1] = newStatus;
+                            
+                            // 保存license信息
+                            String[] headerColumns = header.split(",", -1);
+                            for (int i = 0; i < Math.min(headerColumns.length, columns.length); i++) {
+                                licenseInfo.put(headerColumns[i].trim(), columns[i].trim());
+                            }
+                        }
+                        
+                        // 写入新行（更新后的或原始的）
+                        writer.write(String.join(",", columns) + "\n");
+                    } else {
+                        // 保持原行不变
+                        writer.write(line + "\n");
+                    }
+                }
+            } finally {
+                if (reader != null) {
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        Log.e(TAG, "关闭读取流时出错: " + e.getMessage());
+                    }
+                }
+                if (writer != null) {
+                    try {
+                        writer.close();
+                    } catch (IOException e) {
+                        Log.e(TAG, "关闭写入流时出错: " + e.getMessage());
+                    }
+                }
+            }
+            
+            if (!found) {
+                tempFile.delete();
+                result.put("success", false);
+                result.put("error", "未找到指定的license: " + licenseKey);
+                return result;
+            }
+            
+            // 将临时文件复制回原位置
+            try {
+                Process process = Runtime.getRuntime().exec("su");
+                DataOutputStream outputStream = new DataOutputStream(process.getOutputStream());
+                BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+                // 复制文件
+                outputStream.writeBytes("cat " + tempFile.getAbsolutePath() + " > " + csvFile.getAbsolutePath() + "\n");
+                outputStream.flush();
+                
+                // 设置适当的权限
+                outputStream.writeBytes("chmod 644 " + csvFile.getAbsolutePath() + "\n");
+                outputStream.flush();
+                
+                outputStream.writeBytes("exit\n");
+                outputStream.flush();
+
+                // 读取错误输出
+                StringBuilder error = new StringBuilder();
+                String line;
+                while ((line = errorReader.readLine()) != null) {
+                    error.append(line).append("\n");
+                }
+
+                // 等待命令执行完成
+                int exitValue = process.waitFor();
+                
+                // 删除临时文件
+                tempFile.delete();
+
+                if (exitValue != 0) {
+                    result.put("success", false);
+                    result.put("error", "更新文件失败: " + error.toString());
+                    return result;
+                }
+            } catch (Exception e) {
+                tempFile.delete();
+                result.put("success", false);
+                result.put("error", "更新文件时出错: " + e.getMessage());
+                return result;
+            }
+
+            // 返回成功结果
+            result.put("success", true);
+            result.put("license", licenseInfo);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "修改license状态时出错: " + e.getMessage());
+            try {
+                result.put("success", false);
+                result.put("error", "修改license状态时出错: " + e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建错误JSON时出错: " + je.getMessage());
+            }
+        }
+        
+        return result;
+    }
 }

@@ -14,7 +14,8 @@ import type {
   toolsPlugin,
   WifiConfigResult,
   DeviceInfoResult,
-  WriteDeviceInfoResult
+  WriteDeviceInfoResult,
+  UpdateLicenseResult
 } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
@@ -424,6 +425,17 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     return {
       success: false,
       error: "Web平台不支持写入设备信息文件。请在Android设备上使用此功能。"
+    };
+  }
+
+  async updateLicenseStatus(_options: { 
+    fileName: string;
+    license: string;
+    status: string;
+  }): Promise<UpdateLicenseResult> {
+    return {
+      success: false,
+      error: "Web平台不支持修改license状态。请在Android设备上使用此功能。"
     };
   }
 }

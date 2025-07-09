@@ -1,5 +1,39 @@
 import type { PluginListenerHandle } from '@capacitor/core';
 
+export interface NetworkSiteStatus {
+  url: string;
+  isAvailable: boolean;
+  responseTime?: number;    // 响应时间（毫秒）
+  error?: string;          // 如果访问失败，错误信息
+  statusCode?: number;     // HTTP状态码
+  debugInfo?: {            // 调试信息
+    type?: string;         // 响应类型
+    contentType?: string;  // 内容类型
+    headers?: Record<string, string>; // 响应头
+    message?: string;      // 错误消息
+    stack?: string;        // 错误堆栈
+    [key: string]: any;    // 其他调试信息
+  };
+}
+
+export interface NetworkStatusResult {
+  success: boolean;
+  error?: string;
+  isConnected: boolean;        // 是否已连接到网络
+  isInternetAvailable: boolean; // 是否可以访问互联网（任一网站可访问即为true）
+  networkType?: string;        // 网络类型（WIFI/MOBILE/ETHERNET等）
+  siteStatus?: NetworkSiteStatus[]; // 各网站的访问状态
+  details?: {
+    signalStrength?: number;   // 信号强度（仅WIFI）
+    ssid?: string;            // WIFI名称（仅WIFI）
+    ipAddress?: string;       // IP地址
+    linkSpeed?: number;       // 连接速度（仅WIFI，Mbps）
+    dns?: string[];          // DNS服务器
+    gateway?: string;        // 网关地址
+    latency?: number;        // 网络延迟（毫秒）
+  };
+}
+
 export interface WifiNetwork {
   ssid: string;
   bssid: string;
@@ -339,6 +373,44 @@ export interface UpdateLicenseResult {
 
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
+  
+  /**
+   * 检查网络是否实际可用
+   * 
+   * 该方法会：
+   * 1. 检查网络连接状态
+   * 2. 验证是否可以实际访问互联网
+   * 3. 获取详细的网络信息
+   * 
+   * @param options.sites 要检查的网站列表，如果不提供则使用默认网站
+   * @returns 网络状态检查结果
+   * @example
+   * // 使用默认网站列表
+   * const result1 = await tools.checkNetworkStatus();
+   * 
+   * // 使用自定义网站列表
+   * const result2 = await tools.checkNetworkStatus({
+   *   sites: [
+   *     'https://www.baidu.com',
+   *     'https://www.qq.com',
+   *     'https://www.taobao.com'
+   *   ]
+   * });
+   * 
+   * if (result1.success) {
+   *   console.log('网络连接状态:', result1.isConnected);
+   *   console.log('互联网可用:', result1.isInternetAvailable);
+   *   console.log('网络类型:', result1.networkType);
+   *   if (result1.siteStatus) {
+   *     result1.siteStatus.forEach(site => {
+   *       console.log(`${site.url}: ${site.isAvailable ? '可访问' : '不可访问'}`);
+   *       if (site.responseTime) console.log(`响应时间: ${site.responseTime}ms`);
+   *       if (!site.isAvailable) console.log(`错误: ${site.error}`);
+   *     });
+   *   }
+   * }
+   */
+  checkNetworkStatus(options?: { sites?: string[] }): Promise<NetworkStatusResult>;
   
   /**
    * 通过DevicePolicyManager直接授予权限

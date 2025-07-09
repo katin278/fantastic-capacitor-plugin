@@ -15,7 +15,8 @@ import type {
   WifiConfigResult,
   DeviceInfoResult,
   WriteDeviceInfoResult,
-  UpdateLicenseResult
+  UpdateLicenseResult,
+  NetworkStatusResult
 } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
@@ -437,5 +438,63 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
       success: false,
       error: "Web平台不支持修改license状态。请在Android设备上使用此功能。"
     };
+  }
+
+  async checkNetworkStatus(): Promise<NetworkStatusResult> {
+    try {
+      // 检查基本网络连接
+      const isOnline = navigator.onLine;
+      
+      if (!isOnline) {
+        return {
+          success: true,
+          isConnected: false,
+          isInternetAvailable: false,
+          networkType: 'none'
+        };
+      }
+
+      // 检查实际网络连通性
+      let isInternetAvailable = false;
+      try {
+        // 尝试访问百度首页来验证网络连接
+        await fetch('https://www.baidu.com/favicon.ico', {
+          mode: 'no-cors',
+          cache: 'no-cache'
+        });
+        isInternetAvailable = true;
+      } catch (e) {
+        isInternetAvailable = false;
+      }
+
+      // 获取网络连接信息（如果浏览器支持）
+      let details: any = {};
+      if ('connection' in navigator) {
+        const connection = (navigator as any).connection;
+        details = {
+          networkType: connection.effectiveType,
+          downlink: connection.downlink, // Mbps
+          rtt: connection.rtt // 毫秒
+        };
+      }
+
+      return {
+        success: true,
+        isConnected: true,
+        isInternetAvailable,
+        networkType: details.networkType || 'unknown',
+        details: {
+          latency: details.rtt,
+          linkSpeed: details.downlink
+        }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        isConnected: false,
+        isInternetAvailable: false,
+        error: error.message
+      };
+    }
   }
 }

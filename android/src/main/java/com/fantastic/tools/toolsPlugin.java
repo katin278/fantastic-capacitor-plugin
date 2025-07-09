@@ -44,6 +44,13 @@ import java.util.List;
                 Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE
             }
+        ),
+        @Permission(
+            alias = "network",
+            strings = {
+                Manifest.permission.ACCESS_NETWORK_STATE,
+                Manifest.permission.INTERNET
+            }
         )
     }
 )
@@ -754,6 +761,33 @@ public class toolsPlugin extends Plugin {
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("修改license状态时出错: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void checkNetworkStatus(PluginCall call) {
+        try {
+            JSONObject result;
+            // 检查是否提供了 sites 参数
+            if (call.hasOption("sites")) {
+                JSArray sitesArray = call.getArray("sites");
+                String[] sites = null;
+                if (sitesArray != null) {
+                    sites = new String[sitesArray.length()];
+                    for (int i = 0; i < sitesArray.length(); i++) {
+                        sites[i] = sitesArray.getString(i);
+                    }
+                }
+                result = implementation.checkNetworkStatus(getContext(), sites);
+            } else {
+                // 如果没有提供 sites 参数，使用无参方法
+                result = implementation.checkNetworkStatus(getContext());
+            }
+            
+            JSObject ret = JSObject.fromJSONObject(result);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Error checking network status: " + e.getMessage());
         }
     }
 }

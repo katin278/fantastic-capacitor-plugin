@@ -67,6 +67,12 @@ import android.webkit.WebSettings;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
 import android.app.ActivityManager;
+import android.net.NetworkInfo;
+import android.net.DhcpInfo;
+
+import java.util.Locale;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class tools {
     private static final String TAG = "FantasticWifiTools";
@@ -2935,5 +2941,164 @@ public class tools {
         }
         
         return result;
+    }
+
+    private JSONArray checkMultiSiteConnectivity(String[] sites) {
+        JSONArray siteStatus = new JSONArray();
+        
+        // 如果没有提供网站列表，使用默认列表
+        if (sites == null || sites.length == 0) {
+            sites = new String[] {
+                "https://www.baidu.com",
+                "https://www.qq.com",
+                "https://www.taobao.com"
+            };
+        }
+        
+        for (String site : sites) {
+            HttpURLConnection connection = null;
+            long startTime = System.currentTimeMillis();
+            
+            try {
+                URL url = new URL(site);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                
+                // 根据不同网站设置不同的超时时间
+                if (site.equals("https://api.calendarloop.com")) {
+                    connection.setConnectTimeout(20000);    // 连接超时：20秒
+                    connection.setReadTimeout(20000);       // 读取超时：20秒
+                } else {
+                    connection.setConnectTimeout(5000);     // 连接超时：5秒
+                    connection.setReadTimeout(5000);        // 读取超时：5秒
+                }
+                
+                connection.setInstanceFollowRedirects(false); // 不跟随重定向
+                
+                // 发送请求
+                int responseCode = connection.getResponseCode();
+                long endTime = System.currentTimeMillis();
+                JSONObject status = new JSONObject();
+                status.put("url", site);
+                status.put("isAvailable", responseCode >= 200 && responseCode < 400);
+                status.put("responseTime", endTime - startTime);
+                status.put("statusCode", responseCode);
+                
+                siteStatus.put(status);
+                
+            } catch (Exception e) {
+                try {
+                    JSONObject status = new JSONObject();
+                    status.put("url", site);
+                    status.put("isAvailable", false);
+                    status.put("error", e.getMessage());
+                    siteStatus.put(status);
+                } catch (JSONException je) {
+                    Log.e(TAG, "Error creating JSON for site status", je);
+                }
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        }
+        
+        return siteStatus;
+    }
+
+    // 保持原有的无参方法
+    public JSONObject checkNetworkStatus(Context context) {
+        return checkNetworkStatus(context, null);
+    }
+
+    // 新增带参数的方法
+    public JSONObject checkNetworkStatus(Context context, String[] sites) {
+        JSONObject result = new JSONObject();
+        try {
+            ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
+            
+            boolean isConnected = activeNetwork != null && activeNetwork.isConnected();
+            String networkType = "none";
+            JSONObject details = new JSONObject();
+            
+            if (isConnected) {
+                // 获取网络类型
+                switch (activeNetwork.getType()) {
+                    case ConnectivityManager.TYPE_WIFI:
+                        networkType = "WIFI";
+                        // 获取WIFI详细信息
+                        WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+                        WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+                        if (wifiInfo != null) {
+                            details.put("ssid", wifiInfo.getSSID().replace("\"", ""));
+                            details.put("signalStrength", WifiManager.calculateSignalLevel(wifiInfo.getRssi(), 5));
+                            details.put("linkSpeed", wifiInfo.getLinkSpeed());
+                            details.put("ipAddress", formatIpAddress(wifiInfo.getIpAddress()));
+                        }
+                        break;
+                    case ConnectivityManager.TYPE_MOBILE:
+                        networkType = "MOBILE";
+                        break;
+                    case ConnectivityManager.TYPE_ETHERNET:
+                        networkType = "ETHERNET";
+                        break;
+                    default:
+                        networkType = "OTHER";
+                }
+                
+                // 获取网络详细信息
+                DhcpInfo dhcpInfo = ((WifiManager) context.getSystemService(Context.WIFI_SERVICE)).getDhcpInfo();
+                if (dhcpInfo != null) {
+                    details.put("gateway", formatIpAddress(dhcpInfo.gateway));
+                    details.put("dns", new JSONArray()
+                        .put(formatIpAddress(dhcpInfo.dns1))
+                        .put(formatIpAddress(dhcpInfo.dns2)));
+                }
+                
+                // 检查多个网站的连通性
+                JSONArray siteStatus = checkMultiSiteConnectivity(sites);
+                boolean isInternetAvailable = false;
+                
+                // 如果任一网站可访问，则认为互联网可用
+                for (int i = 0; i < siteStatus.length(); i++) {
+                    JSONObject site = siteStatus.getJSONObject(i);
+                    if (site.getBoolean("isAvailable")) {
+                        isInternetAvailable = true;
+                        break;
+                    }
+                }
+                
+                result.put("success", true);
+                result.put("isConnected", true);
+                result.put("isInternetAvailable", isInternetAvailable);
+                result.put("networkType", networkType);
+                result.put("siteStatus", siteStatus);
+                result.put("details", details);
+            } else {
+                result.put("success", true);
+                result.put("isConnected", false);
+                result.put("isInternetAvailable", false);
+                result.put("networkType", "none");
+            }
+        } catch (Exception e) {
+            try {
+                result.put("success", false);
+                result.put("isConnected", false);
+                result.put("isInternetAvailable", false);
+                result.put("error", e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "Error creating JSON response", je);
+            }
+        }
+        return result;
+    }
+
+    private String formatIpAddress(int ipAddress) {
+        return String.format(Locale.US, "%d.%d.%d.%d",
+            (ipAddress & 0xff),
+            (ipAddress >> 8 & 0xff),
+            (ipAddress >> 16 & 0xff),
+            (ipAddress >> 24 & 0xff));
     }
 }

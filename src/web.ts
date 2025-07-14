@@ -497,4 +497,19 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
       };
     }
   }
+
+  async getDeviceMacAddress(): Promise<{
+    success: boolean;
+    macAddress?: string;
+    androidVersion?: number;
+    message?: string;
+    requiredPermissions?: string[];
+  }> {
+    // Web平台无法获取真实MAC地址，返回一个提示信息
+    return {
+      success: false,
+      message: '在Web平台上不支持获取MAC地址',
+      androidVersion: 0
+    };
+  }
 }

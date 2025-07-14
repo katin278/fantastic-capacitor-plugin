@@ -73,6 +73,8 @@ import android.net.DhcpInfo;
 import java.util.Locale;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.NetworkInterface;
+import java.util.Collections;
 
 public class tools {
     private static final String TAG = "FantasticWifiTools";
@@ -3100,5 +3102,98 @@ public class tools {
             (ipAddress >> 8 & 0xff),
             (ipAddress >> 16 & 0xff),
             (ipAddress >> 24 & 0xff));
+    }
+
+    /**
+     * 获取设备MAC地址
+     * 需要以下权限：
+     * - ACCESS_FINE_LOCATION (Android 10+)
+     * - ACCESS_WIFI_STATE
+     * - LOCAL_MAC_ADDRESS (Android 10+, 部分机型可能需要)
+     *
+     * @param context 上下文
+     * @return 包含MAC地址信息的JSONObject
+     */
+    public JSONObject getDeviceMacAddress(Context context) {
+        JSONObject result = new JSONObject();
+        try {
+            WifiManager wifiManager = (WifiManager) context.getApplicationContext()
+                    .getSystemService(Context.WIFI_SERVICE);
+            
+            if (wifiManager == null) {
+                result.put("success", false);
+                result.put("message", "无法获取WifiManager服务");
+                return result;
+            }
+
+            String macAddress = "02:00:00:00:00:00"; // 默认值
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Android 10及以上版本
+                if (!checkWifiPermissions(context)) {
+                    result.put("success", false);
+                    result.put("message", "缺少必要权限");
+                    result.put("requiredPermissions", new JSONArray(getRequiredWifiPermissions()));
+                    return result;
+                }
+
+                try {
+                    List<WifiConfiguration> configuredNetworks = wifiManager.getConfiguredNetworks();
+                    if (configuredNetworks != null && !configuredNetworks.isEmpty()) {
+                        WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+                        if (wifiInfo != null) {
+                            macAddress = wifiInfo.getMacAddress();
+                        }
+                    }
+                } catch (SecurityException e) {
+                    Log.e(TAG, "获取MAC地址时发生安全异常: " + e.getMessage());
+                }
+
+                // 如果还是获取不到，尝试通过NetworkInterface获取
+                if ("02:00:00:00:00:00".equals(macAddress)) {
+                    try {
+                        List<NetworkInterface> networkInterfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
+                        for (NetworkInterface networkInterface : networkInterfaces) {
+                            if (networkInterface.getName().equalsIgnoreCase("wlan0")) {
+                                byte[] hardwareAddress = networkInterface.getHardwareAddress();
+                                if (hardwareAddress != null) {
+                                    StringBuilder sb = new StringBuilder();
+                                    for (byte b : hardwareAddress) {
+                                        sb.append(String.format("%02X:", b));
+                                    }
+                                    if (sb.length() > 0) {
+                                        sb.deleteCharAt(sb.length() - 1);
+                                    }
+                                    macAddress = sb.toString();
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "通过NetworkInterface获取MAC地址失败: " + e.getMessage());
+                    }
+                }
+            } else {
+                // Android 10以下版本
+                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+                if (wifiInfo != null) {
+                    macAddress = wifiInfo.getMacAddress();
+                }
+            }
+
+            result.put("success", true);
+            result.put("macAddress", macAddress);
+            result.put("androidVersion", Build.VERSION.SDK_INT);
+            
+        } catch (Exception e) {
+            try {
+                result.put("success", false);
+                result.put("message", "获取MAC地址时发生错误: " + e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "创建JSON响应时发生错误", je);
+            }
+        }
+        
+        return result;
     }
 }

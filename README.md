@@ -1,4 +1,4 @@
-# WiFi配置文件说明
+# Fantastic Capacitor Plugin
 
 ## 配置文件格式
 
@@ -69,3 +69,54 @@ if (result.optBoolean("success", false)) {
 
 - `success`: false
 - `error`: 详细的错误信息
+
+## API
+
+### getDeviceMacAddress
+
+获取设备的MAC地址。
+
+**注意：** 在Android 10及以上版本，需要以下权限：
+
+- `ACCESS_FINE_LOCATION`
+- `ACCESS_WIFI_STATE`
+- `LOCAL_MAC_ADDRESS`（部分设备可能需要）
+
+```typescript
+import { tools } from 'fantastic-capacitor-plugin';
+
+const getMacAddress = async () => {
+  try {
+    const result = await tools.getDeviceMacAddress();
+    if (result.success) {
+      console.log('MAC地址:', result.macAddress);
+      console.log('Android版本:', result.androidVersion);
+    } else {
+      console.error('获取MAC地址失败:', result.message);
+      if (result.requiredPermissions) {
+        console.log('需要的权限:', result.requiredPermissions);
+      }
+    }
+  } catch (error) {
+    console.error('发生错误:', error);
+  }
+};
+```
+
+**返回值：**
+
+```typescript
+{
+  success: boolean;        // 是否成功
+  macAddress?: string;     // MAC地址（如果成功）
+  androidVersion?: number; // Android系统版本
+  message?: string;        // 错误信息（如果失败）
+  requiredPermissions?: string[]; // 缺少的权限列表（如果需要）
+}
+```
+
+**注意事项：**
+
+1. 在Android 10及以上版本，由于系统限制，可能会返回默认MAC地址"02:00:00:00:00:00"
+2. 使用前请确保已经获取了必要的权限
+3. 建议在应用启动时检查并请求所需权限

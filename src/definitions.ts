@@ -794,4 +794,17 @@ export interface toolsPlugin {
     license: string;
     status: string;
   }): Promise<UpdateLicenseResult>;
+
+  /**
+   * 获取设备MAC地址
+   * 注意：在Android 10及以上版本，需要特定权限
+   * @returns 包含MAC地址信息的对象
+   */
+  getDeviceMacAddress(): Promise<{
+    success: boolean;
+    macAddress?: string;
+    androidVersion?: number;
+    message?: string;
+    requiredPermissions?: string[];
+  }>;
 }

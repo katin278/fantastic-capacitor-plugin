@@ -790,4 +790,29 @@ public class toolsPlugin extends Plugin {
             call.reject("Error checking network status: " + e.getMessage());
         }
     }
+
+    @PluginMethod
+    public void getDeviceMacAddress(PluginCall call) {
+        try {
+            tools toolsInstance = new tools();
+            JSONObject result = toolsInstance.getDeviceMacAddress(getContext());
+            
+            JSObject ret = new JSObject();
+            ret.put("success", result.getBoolean("success"));
+            
+            if (result.getBoolean("success")) {
+                ret.put("macAddress", result.getString("macAddress"));
+                ret.put("androidVersion", result.getInt("androidVersion"));
+            } else {
+                ret.put("message", result.getString("message"));
+                if (result.has("requiredPermissions")) {
+                    ret.put("requiredPermissions", result.getJSONArray("requiredPermissions"));
+                }
+            }
+            
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("获取MAC地址失败: " + e.getMessage());
+        }
+    }
 }

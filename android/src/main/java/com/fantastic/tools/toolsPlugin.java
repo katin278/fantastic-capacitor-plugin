@@ -847,4 +847,20 @@ public class toolsPlugin extends Plugin {
             call.reject("断开Wi-Fi失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 清除应用数据和缓存
+     */
+    @PluginMethod
+    public void clearAppData(PluginCall call) {
+        String packageName = call.getString("packageName");
+        
+        try {
+            JSONObject result = implementation.clearAppData(getContext(), packageName);
+            JSObject jsResult = JSObject.fromJSONObject(result);
+            call.resolve(jsResult);
+        } catch (Exception e) {
+            call.reject("清除应用数据失败: " + e.getMessage());
+        }
+    }
 }

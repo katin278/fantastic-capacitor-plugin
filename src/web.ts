@@ -512,6 +512,29 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
   }
 
   /**
+   * Web平台不支持清除应用数据和缓存
+   */
+  async clearAppData(options?: {
+    packageName?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    details?: {
+      clearedCache: boolean;
+      clearedData: boolean;
+      clearedDatabases: boolean;
+      clearedPreferences: boolean;
+      packageName: string;
+    };
+  }> {
+    console.log('Web平台不支持清除应用数据和缓存', options);
+    return {
+      success: false,
+      message: 'Web平台不支持清除应用数据和缓存操作'
+    };
+  }
+
+  /**
    * Web平台不支持断开Wi-Fi连接操作
    */
   async disconnectAndForgetWifi(): Promise<{

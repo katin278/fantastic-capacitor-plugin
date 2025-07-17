@@ -833,4 +833,50 @@ export interface toolsPlugin {
     success: boolean;
     message?: string;
   }>;
+
+  /**
+   * 清除应用数据和缓存
+   * 
+   * 该方法会：
+   * 1. 清除应用的所有数据
+   * 2. 清除内部和外部缓存
+   * 3. 清除数据库
+   * 4. 清除SharedPreferences
+   * 
+   * 注意：
+   * - 需要Android 10及以上版本
+   * - 此操作不可逆
+   * - 会导致应用重启
+   * 
+   * @param options.packageName 要清除的应用包名（可选，默认为当前应用）
+   * @returns 包含操作结果的Promise
+   * @example
+   * // 清除当前应用的数据
+   * const result = await tools.clearAppData();
+   * 
+   * // 清除指定应用的数据
+   * const result = await tools.clearAppData({
+   *   packageName: 'com.example.app'
+   * });
+   * 
+   * if (result.success) {
+   *   console.log('清除成功:', result.message);
+   *   console.log('清除详情:', result.details);
+   * } else {
+   *   console.error('清除失败:', result.message);
+   * }
+   */
+  clearAppData(options?: {
+    packageName?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    details?: {
+      clearedCache: boolean;
+      clearedData: boolean;
+      clearedDatabases: boolean;
+      clearedPreferences: boolean;
+      packageName: string;
+    };
+  }>;
 }

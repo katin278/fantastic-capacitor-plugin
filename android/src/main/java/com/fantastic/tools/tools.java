@@ -75,6 +75,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.NetworkInterface;
 import java.util.Collections;
+import android.content.pm.ApplicationInfo;
 
 public class tools {
     private static final String TAG = "FantasticWifiTools";
@@ -3197,5 +3198,203 @@ public class tools {
             }
         }
         return result;
+    }
+
+    /**
+     * 清除应用数据和缓存
+     * @param context Android上下文
+     * @param packageName 要清除的应用包名，如果为空则清除当前应用
+     * @return 操作结果
+     */
+    public JSONObject clearAppData(Context context, String packageName) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                try {
+                    boolean hasRoot = checkRootAccess();
+                    if (hasRoot || hasRequiredPermissions(context)) {
+                        boolean cacheCleared = clearApplicationCache(context);
+                        boolean dataCleared = clearApplicationData(context);
+                        boolean dbCleared = clearDatabases(context);
+                        boolean prefsCleared = clearSharedPreferences(context);
+                        
+                        result.put("success", true);
+                        result.put("message", "已成功清除应用数据和缓存");
+                        
+                        JSONObject details = new JSONObject();
+                        details.put("clearedCache", cacheCleared);
+                        details.put("clearedData", dataCleared);
+                        details.put("clearedDatabases", dbCleared);
+                        details.put("clearedPreferences", prefsCleared);
+                        details.put("packageName", packageName);
+                        details.put("hasRootAccess", hasRoot);
+                        result.put("details", details);
+                    } else {
+                        result.put("success", false);
+                        result.put("message", "清除应用数据失败，可能需要系统权限");
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "清除应用数据时出错", e);
+                    result.put("success", false);
+                    result.put("message", "清除应用数据时出错: " + getDetailedErrorMessage(e));
+                }
+            } else {
+                result.put("success", false);
+                result.put("message", "此功能仅支持Android 10及以上版本");
+            }
+        } catch (Exception e) {
+            try {
+                Log.e(TAG, "清除应用数据时发生异常", e);
+                result.put("success", false);
+                result.put("message", "操作失败: " + getDetailedErrorMessage(e));
+            } catch (JSONException je) {
+                Log.e(TAG, "JSON错误", je);
+            }
+        }
+        
+        return result;
+    }
+
+    private boolean hasRequiredPermissions(Context context) {
+        try {
+            ApplicationInfo appInfo = context.getPackageManager().getApplicationInfo(context.getPackageName(), 0);
+            return (appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 检查是否有root权限
+     */
+    private boolean checkRootAccess() {
+        try {
+            Process process = Runtime.getRuntime().exec("su");
+            process.destroy();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 清除应用缓存
+     */
+    private boolean clearApplicationCache(Context context) {
+        try {
+            File cacheDir = context.getCacheDir();
+            File externalCacheDir = context.getExternalCacheDir();
+            
+            boolean success = true;
+            if (cacheDir != null) {
+                success &= deleteDirectory(cacheDir);
+            }
+            if (externalCacheDir != null) {
+                success &= deleteDirectory(externalCacheDir);
+            }
+            return success;
+        } catch (Exception e) {
+            Log.e(TAG, "清除缓存时出错", e);
+            return false;
+        }
+    }
+
+    /**
+     * 清除应用数据
+     */
+    private boolean clearApplicationData(Context context) {
+        try {
+            File dataDir = new File(context.getApplicationInfo().dataDir);
+            File[] externalFilesDirs = context.getExternalFilesDirs(null);
+            
+            boolean success = true;
+            if (dataDir.exists()) {
+                success &= deleteDirectory(dataDir);
+            }
+            if (externalFilesDirs != null) {
+                for (File dir : externalFilesDirs) {
+                    if (dir != null && dir.exists()) {
+                        success &= deleteDirectory(dir);
+                    }
+                }
+            }
+            return success;
+        } catch (Exception e) {
+            Log.e(TAG, "清除应用数据时出错", e);
+            return false;
+        }
+    }
+
+    /**
+     * 清除数据库
+     */
+    private boolean clearDatabases(Context context) {
+        try {
+            for (String database : context.databaseList()) {
+                context.deleteDatabase(database);
+            }
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "清除数据库时出错", e);
+            return false;
+        }
+    }
+
+    /**
+     * 清除SharedPreferences
+     */
+    private boolean clearSharedPreferences(Context context) {
+        try {
+            File prefsDir = new File(context.getApplicationInfo().dataDir, "shared_prefs");
+            return !prefsDir.exists() || deleteDirectory(prefsDir);
+        } catch (Exception e) {
+            Log.e(TAG, "清除SharedPreferences时出错", e);
+            return false;
+        }
+    }
+
+    /**
+     * 获取详细的错误信息
+     */
+    private String getDetailedErrorMessage(Exception e) {
+        StringBuilder message = new StringBuilder(e.getMessage() != null ? e.getMessage() : "未知错误");
+        
+        if (e instanceof SecurityException) {
+            message.append(" (权限不足，请确保应用具有系统权限)");
+        } else if (e instanceof IllegalArgumentException) {
+            message.append(" (参数错误，请检查包名是否正确)");
+        } else if (e instanceof RuntimeException) {
+            message.append(" (运行时错误，可能需要系统权限)");
+        }
+        
+        return message.toString();
+    }
+
+    /**
+     * 递归删除目录及其内容
+     * @param directory 要删除的目录
+     * @return 是否删除成功
+     */
+    private boolean deleteDirectory(File directory) {
+        if (directory == null || !directory.exists()) {
+            return false;
+        }
+
+        // 如果是文件，直接删除
+        if (directory.isFile()) {
+            return directory.delete();
+        }
+
+        // 如果是目录，递归删除内容
+        File[] files = directory.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                deleteDirectory(file);
+            }
+        }
+
+        // 删除空目录
+        return directory.delete();
     }
 }

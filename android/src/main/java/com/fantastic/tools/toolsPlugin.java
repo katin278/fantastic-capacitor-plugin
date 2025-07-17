@@ -815,4 +815,36 @@ public class toolsPlugin extends Plugin {
             call.reject("获取MAC地址失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 断开并清除当前Wi-Fi连接
+     */
+    @PluginMethod
+    public void disconnectAndForgetWifi(PluginCall call) {
+        if (!implementation.checkWifiPermissions(getContext())) {
+            call.reject("需要Wi-Fi和位置权限才能断开Wi-Fi");
+            return;
+        }
+        
+        try {
+            JSONObject result = implementation.disconnectAndForgetWifi(getContext());
+            JSObject jsResult = new JSObject();
+            
+            // 转换JSONObject到JSObject
+            Iterator<String> keys = result.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                Object value = result.get(key);
+                if (value instanceof Boolean) {
+                    jsResult.put(key, (Boolean) value);
+                } else if (value instanceof String) {
+                    jsResult.put(key, (String) value);
+                }
+            }
+            
+            call.resolve(jsResult);
+        } catch (Exception e) {
+            call.reject("断开Wi-Fi失败: " + e.getMessage());
+        }
+    }
 }

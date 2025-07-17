@@ -505,11 +505,23 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     message?: string;
     requiredPermissions?: string[];
   }> {
-    // Web平台无法获取真实MAC地址，返回一个提示信息
     return {
       success: false,
-      message: '在Web平台上不支持获取MAC地址',
-      androidVersion: 0
+      message: 'Web平台不支持获取MAC地址'
+    };
+  }
+
+  /**
+   * Web平台不支持断开Wi-Fi连接操作
+   */
+  async disconnectAndForgetWifi(): Promise<{
+    success: boolean;
+    message?: string;
+  }> {
+    console.log('Web平台不支持断开Wi-Fi连接操作');
+    return {
+      success: false,
+      message: 'Web平台不支持Wi-Fi连接操作'
     };
   }
 }

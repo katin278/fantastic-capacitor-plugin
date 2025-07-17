@@ -3138,4 +3138,64 @@ public class tools {
         
         return result;
     }
+
+    public JSONObject disconnectAndForgetWifi(Context context) {
+        JSONObject result = new JSONObject();
+        try {
+            WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+            if (wifiManager == null) {
+                result.put("success", false);
+                result.put("message", "无法获取WifiManager服务");
+                return result;
+            }
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                // Android 10及以上版本
+                ConnectivityManager connectivityManager = 
+                    (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+                
+                if (connectivityManager == null) {
+                    result.put("success", false);
+                    result.put("message", "无法获取ConnectivityManager服务");
+                    return result;
+                }
+
+                // 断开当前Wi-Fi连接
+                NetworkRequest.Builder builder = new NetworkRequest.Builder();
+                builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
+                
+                connectivityManager.requestNetwork(builder.build(), 
+                    new ConnectivityManager.NetworkCallback() {
+                        @Override
+                        public void onAvailable(Network network) {
+                            connectivityManager.bindProcessToNetwork(null);
+                            connectivityManager.unregisterNetworkCallback(this);
+                        }
+                    });
+
+                // 移除所有已保存的网络配置
+                List<WifiConfiguration> configuredNetworks = wifiManager.getConfiguredNetworks();
+                if (configuredNetworks != null) {
+                    for (WifiConfiguration wifiConfig : configuredNetworks) {
+                        wifiManager.removeNetwork(wifiConfig.networkId);
+                    }
+                    wifiManager.saveConfiguration();
+                }
+
+                result.put("success", true);
+                result.put("message", "已成功断开并清除所有Wi-Fi连接");
+            } else {
+                result.put("success", false);
+                result.put("message", "此功能仅支持Android 10及以上版本");
+            }
+        } catch (Exception e) {
+            try {
+                result.put("success", false);
+                result.put("message", "断开Wi-Fi时发生错误: " + e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "JSON错误: " + je.getMessage());
+            }
+        }
+        return result;
+    }
 }

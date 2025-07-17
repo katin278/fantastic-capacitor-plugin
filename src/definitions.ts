@@ -807,4 +807,30 @@ export interface toolsPlugin {
     message?: string;
     requiredPermissions?: string[];
   }>;
+
+  /**
+   * 断开并清除当前Wi-Fi连接
+   * 
+   * 该方法会：
+   * 1. 断开当前Wi-Fi连接
+   * 2. 删除已保存的网络配置
+   * 
+   * 注意：
+   * - 需要Wi-Fi和位置权限
+   * - 删除配置后，再次连接需要重新输入密码
+   * - Android 10及以上版本使用新的API实现
+   * 
+   * @returns 包含操作结果的Promise
+   * @example
+   * const result = await tools.disconnectAndForgetWifi();
+   * if (result.success) {
+   *   console.log('已断开并清除Wi-Fi连接');
+   * } else {
+   *   console.error('操作失败:', result.message);
+   * }
+   */
+  disconnectAndForgetWifi(): Promise<{
+    success: boolean;
+    message?: string;
+  }>;
 }

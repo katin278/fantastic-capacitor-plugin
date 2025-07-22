@@ -863,4 +863,18 @@ public class toolsPlugin extends Plugin {
             call.reject("清除应用数据失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 获取当前连接的Wi-Fi信息
+     */
+    @PluginMethod
+    public void getCurrentWifiInfo(PluginCall call) {
+        try {
+            JSONObject result = implementation.getCurrentWifiInfo(getContext());
+            JSObject jsResult = JSObject.fromJSONObject(result);
+            call.resolve(jsResult);
+        } catch (Exception e) {
+            call.reject("获取Wi-Fi信息失败: " + e.getMessage());
+        }
+    }
 }

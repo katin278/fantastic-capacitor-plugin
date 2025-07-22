@@ -16,7 +16,8 @@ import type {
   DeviceInfoResult,
   WriteDeviceInfoResult,
   UpdateLicenseResult,
-  NetworkStatusResult
+  NetworkStatusResult,
+  CurrentWifiResult
 } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
@@ -508,6 +509,20 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     return {
       success: false,
       message: 'Web平台不支持获取MAC地址'
+    };
+  }
+
+  /**
+   * Web平台不支持获取Wi-Fi信息
+   */
+  async getCurrentWifiInfo(): Promise<CurrentWifiResult> {
+    console.log('Web平台不支持获取Wi-Fi信息');
+    return {
+      success: false,
+      message: 'Web平台不支持获取Wi-Fi信息',
+      isWifiEnabled: false,
+      isConnected: false,
+      connectionState: 'DISCONNECTED'
     };
   }
 

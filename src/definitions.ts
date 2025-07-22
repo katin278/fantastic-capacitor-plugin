@@ -371,6 +371,43 @@ export interface UpdateLicenseResult {
   };
 }
 
+export interface WifiDetails {
+  ssid: string;
+  bssid: string;
+  macAddress: string;
+  ipAddress: string;
+  networkId: number;
+  rssi: number;
+  linkSpeed: number;
+  frequency: number;
+  signalStrength: number;
+  securityType?: string;
+  capabilities?: {
+    hasInternet: boolean;
+    isValidated: boolean;
+    maxDownloadSpeed: number;
+    maxUploadSpeed: number;
+  };
+  dhcp?: {
+    gateway: string;
+    netmask: string;
+    dns1: string;
+    dns2: string;
+    serverAddress: string;
+    leaseDuration: number;
+  };
+}
+
+export interface CurrentWifiResult {
+  success: boolean;
+  message?: string;
+  isWifiEnabled?: boolean;
+  isConnected?: boolean;
+  wifiInfo?: WifiDetails;
+  connectionState?: 'CONNECTED_VALIDATED' | 'CONNECTED' | 'DISCONNECTED';
+  requiredPermissions?: string[];
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -879,4 +916,42 @@ export interface toolsPlugin {
       packageName: string;
     };
   }>;
+
+  /**
+   * 获取当前连接的Wi-Fi信息
+   * 
+   * 该方法会返回：
+   * 1. Wi-Fi基本信息（SSID、BSSID、MAC地址等）
+   * 2. 连接状态和信号强度
+   * 3. 网络配置信息（Android 10+）
+   * 4. DHCP信息
+   * 5. 安全类型
+   * 
+   * 注意：
+   * - 需要ACCESS_FINE_LOCATION权限
+   * - 需要ACCESS_WIFI_STATE权限
+   * - Android 10+会返回更多网络能力信息
+   * 
+   * @returns 包含Wi-Fi信息的Promise
+   * @example
+   * const result = await tools.getCurrentWifiInfo();
+   * if (result.success) {
+   *   if (result.isWifiEnabled) {
+   *     if (result.isConnected) {
+   *       console.log('当前连接的Wi-Fi:', result.wifiInfo);
+   *       console.log('连接状态:', result.connectionState);
+   *     } else {
+   *       console.log('Wi-Fi已启用但未连接');
+   *     }
+   *   } else {
+   *     console.log('Wi-Fi未启用');
+   *   }
+   * } else {
+   *   console.error('获取Wi-Fi信息失败:', result.message);
+   *   if (result.requiredPermissions) {
+   *     console.log('需要以下权限:', result.requiredPermissions);
+   *   }
+   * }
+   */
+  getCurrentWifiInfo(): Promise<CurrentWifiResult>;
 }

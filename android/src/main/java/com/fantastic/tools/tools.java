@@ -3397,4 +3397,190 @@ public class tools {
         // 删除空目录
         return directory.delete();
     }
+
+    /**
+     * 获取当前连接的Wi-Fi信息
+     * @param context Android上下文
+     * @return 包含Wi-Fi信息的JSON对象
+     */
+    public JSONObject getCurrentWifiInfo(Context context) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            if (!checkWifiPermissions(context)) {
+                result.put("success", false);
+                result.put("message", "缺少必要权限");
+                JSONArray permissions = new JSONArray()
+                    .put(Manifest.permission.ACCESS_FINE_LOCATION)
+                    .put(Manifest.permission.ACCESS_WIFI_STATE);
+                result.put("requiredPermissions", permissions);
+                return result;
+            }
+
+            WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+            if (wifiManager == null) {
+                result.put("success", false);
+                result.put("message", "无法获取WifiManager服务");
+                return result;
+            }
+
+            if (!wifiManager.isWifiEnabled()) {
+                result.put("success", true);
+                result.put("isWifiEnabled", false);
+                result.put("message", "Wi-Fi未启用");
+                return result;
+            }
+
+            WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+            if (wifiInfo == null) {
+                result.put("success", true);
+                result.put("isConnected", false);
+                result.put("message", "未连接到任何Wi-Fi网络");
+                return result;
+            }
+
+            // 获取基本连接信息
+            String ssid = wifiInfo.getSSID();
+            if (ssid != null && ssid.startsWith("\"") && ssid.endsWith("\"")) {
+                ssid = ssid.substring(1, ssid.length() - 1);
+            }
+
+            result.put("success", true);
+            result.put("isWifiEnabled", true);
+            result.put("isConnected", true);
+
+            // Wi-Fi基本信息
+            JSONObject wifiDetails = new JSONObject();
+            wifiDetails.put("ssid", ssid);
+            wifiDetails.put("bssid", wifiInfo.getBSSID());
+            wifiDetails.put("macAddress", wifiInfo.getMacAddress());
+            wifiDetails.put("ipAddress", formatIpAddress(wifiInfo.getIpAddress()));
+            wifiDetails.put("networkId", wifiInfo.getNetworkId());
+            wifiDetails.put("rssi", wifiInfo.getRssi());
+            wifiDetails.put("linkSpeed", wifiInfo.getLinkSpeed());
+            wifiDetails.put("frequency", wifiInfo.getFrequency());
+            wifiDetails.put("signalStrength", WifiManager.calculateSignalLevel(wifiInfo.getRssi(), 5));
+
+            // 获取网络配置信息
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                // Android 10及以上版本
+                NetworkCapabilities networkCapabilities = null;
+                ConnectivityManager connectivityManager = 
+                    (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+                
+                if (connectivityManager != null) {
+                    Network network = connectivityManager.getActiveNetwork();
+                    if (network != null) {
+                        networkCapabilities = connectivityManager.getNetworkCapabilities(network);
+                    }
+                }
+
+                if (networkCapabilities != null) {
+                    JSONObject capabilities = new JSONObject();
+                    capabilities.put("hasInternet", networkCapabilities.hasCapability(
+                        NetworkCapabilities.NET_CAPABILITY_INTERNET));
+                    capabilities.put("isValidated", networkCapabilities.hasCapability(
+                        NetworkCapabilities.NET_CAPABILITY_VALIDATED));
+                    capabilities.put("maxDownloadSpeed", networkCapabilities.getLinkDownstreamBandwidthKbps());
+                    capabilities.put("maxUploadSpeed", networkCapabilities.getLinkUpstreamBandwidthKbps());
+                    wifiDetails.put("capabilities", capabilities);
+                }
+            }
+
+            // 获取DHCP信息
+            DhcpInfo dhcpInfo = wifiManager.getDhcpInfo();
+            if (dhcpInfo != null) {
+                JSONObject dhcpDetails = new JSONObject();
+                dhcpDetails.put("gateway", formatIpAddress(dhcpInfo.gateway));
+                dhcpDetails.put("netmask", formatIpAddress(dhcpInfo.netmask));
+                dhcpDetails.put("dns1", formatIpAddress(dhcpInfo.dns1));
+                dhcpDetails.put("dns2", formatIpAddress(dhcpInfo.dns2));
+                dhcpDetails.put("serverAddress", formatIpAddress(dhcpInfo.serverAddress));
+                dhcpDetails.put("leaseDuration", dhcpInfo.leaseDuration);
+                wifiDetails.put("dhcp", dhcpDetails);
+            }
+
+            // 获取安全类型
+            List<WifiConfiguration> configuredNetworks = wifiManager.getConfiguredNetworks();
+            if (configuredNetworks != null) {
+                for (WifiConfiguration config : configuredNetworks) {
+                    if (config.networkId == wifiInfo.getNetworkId()) {
+                        wifiDetails.put("securityType", getSecurityType(config));
+                        break;
+                    }
+                }
+            }
+
+            result.put("wifiInfo", wifiDetails);
+            
+            // 添加连接状态
+            result.put("connectionState", getWifiConnectionState(context));
+            
+        } catch (Exception e) {
+            try {
+                result.put("success", false);
+                result.put("message", "获取Wi-Fi信息时出错: " + e.getMessage());
+            } catch (JSONException je) {
+                Log.e(TAG, "JSON错误", je);
+            }
+        }
+        
+        return result;
+    }
+
+    /**
+     * 获取Wi-Fi连接状态
+     */
+    private String getWifiConnectionState(Context context) {
+        ConnectivityManager connectivityManager = 
+            (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            
+        if (connectivityManager != null) {
+            Network network = connectivityManager.getActiveNetwork();
+            if (network != null) {
+                NetworkCapabilities capabilities = 
+                    connectivityManager.getNetworkCapabilities(network);
+                if (capabilities != null) {
+                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                        if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                            return "CONNECTED_VALIDATED";
+                        }
+                        return "CONNECTED";
+                    }
+                }
+            }
+        }
+        return "DISCONNECTED";
+    }
+
+    /**
+     * 获取Wi-Fi安全类型
+     */
+    private String getSecurityType(WifiConfiguration config) {
+        if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)) {
+            return "WPA-PSK";
+        }
+        if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP) ||
+            config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X)) {
+            return "WPA-EAP";
+        }
+        if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE)) {
+            if (config.wepKeys[0] != null) {
+                return "WEP";
+            }
+            return "OPEN";
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.SAE)) {
+                return "WPA3-SAE";
+            }
+            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.OWE)) {
+                return "OWE";
+            }
+            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.SUITE_B_192)) {
+                return "WPA3-SUITE-B";
+            }
+        }
+        return "UNKNOWN";
+    }
 }

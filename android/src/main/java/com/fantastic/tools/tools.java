@@ -76,6 +76,8 @@ import java.net.URL;
 import java.net.NetworkInterface;
 import java.util.Collections;
 import android.content.pm.ApplicationInfo;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 public class tools {
     private static final String TAG = "FantasticWifiTools";
@@ -3070,6 +3072,7 @@ public class tools {
             }
 
             String macAddress = "02:00:00:00:00:00"; // 默认值
+            String method = "default";
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 // Android 10及以上版本
@@ -3080,53 +3083,67 @@ public class tools {
                     return result;
                 }
 
-                try {
-                    List<WifiConfiguration> configuredNetworks = wifiManager.getConfiguredNetworks();
-                    if (configuredNetworks != null && !configuredNetworks.isEmpty()) {
-                        WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-                        if (wifiInfo != null) {
-                            macAddress = wifiInfo.getMacAddress();
-                        }
-                    }
-                } catch (SecurityException e) {
-                    Log.e(TAG, "获取MAC地址时发生安全异常: " + e.getMessage());
-                }
-
-                // 如果还是获取不到，尝试通过NetworkInterface获取
-                if ("02:00:00:00:00:00".equals(macAddress)) {
-                    try {
-                        List<NetworkInterface> networkInterfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
-                        for (NetworkInterface networkInterface : networkInterfaces) {
-                            if (networkInterface.getName().equalsIgnoreCase("wlan0")) {
-                                byte[] hardwareAddress = networkInterface.getHardwareAddress();
-                                if (hardwareAddress != null) {
-                                    StringBuilder sb = new StringBuilder();
-                                    for (byte b : hardwareAddress) {
-                                        sb.append(String.format("%02X:", b));
+                // 方法1：通过NetworkInterface获取（最可靠）
+                String networkMac = getMacAddressFromNetworkInterface();
+                if (networkMac != null && !networkMac.equals("02:00:00:00:00:00")) {
+                    macAddress = networkMac;
+                    method = "NetworkInterface";
+                } else {
+                    // 方法2：通过文件系统获取
+                    String fileMac = getMacAddressFromFile();
+                    if (fileMac != null && !fileMac.equals("02:00:00:00:00:00")) {
+                        macAddress = fileMac;
+                        method = "FileSystem";
+                    } else {
+                        // 方法3：通过命令行获取
+                        String cmdMac = getMacAddressFromCommand();
+                        if (cmdMac != null && !cmdMac.equals("02:00:00:00:00:00")) {
+                            macAddress = cmdMac;
+                            method = "Command";
+                        } else {
+                            // 方法4：尝试WifiInfo（通常返回随机MAC）
+                            try {
+                                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+                                if (wifiInfo != null) {
+                                    String wifiMac = wifiInfo.getMacAddress();
+                                    if (wifiMac != null) {
+                                        macAddress = wifiMac;
+                                        method = "WifiInfo(可能是随机MAC)";
                                     }
-                                    if (sb.length() > 0) {
-                                        sb.deleteCharAt(sb.length() - 1);
-                                    }
-                                    macAddress = sb.toString();
-                                    break;
                                 }
+                            } catch (SecurityException e) {
+                                Log.e(TAG, "获取MAC地址时发生安全异常: " + e.getMessage());
                             }
                         }
-                    } catch (Exception e) {
-                        Log.e(TAG, "通过NetworkInterface获取MAC地址失败: " + e.getMessage());
                     }
                 }
             } else {
-                // Android 10以下版本
+                // Android 10以下版本：直接通过WifiInfo获取
                 WifiInfo wifiInfo = wifiManager.getConnectionInfo();
                 if (wifiInfo != null) {
-                    macAddress = wifiInfo.getMacAddress();
+                    String wifiMac = wifiInfo.getMacAddress();
+                    if (wifiMac != null) {
+                        macAddress = wifiMac;
+                        method = "WifiInfo";
+                    }
+                }
+                
+                // 如果WifiInfo获取失败，尝试其他方法
+                if ("02:00:00:00:00:00".equals(macAddress)) {
+                    String networkMac = getMacAddressFromNetworkInterface();
+                    if (networkMac != null && !networkMac.equals("02:00:00:00:00:00")) {
+                        macAddress = networkMac;
+                        method = "NetworkInterface";
+                    }
                 }
             }
 
             result.put("success", true);
             result.put("macAddress", macAddress);
+            result.put("method", method);
             result.put("androidVersion", Build.VERSION.SDK_INT);
+            result.put("isRandomizedMac", "02:00:00:00:00:00".equals(macAddress) || 
+                      macAddress.startsWith("02:"));
             
         } catch (Exception e) {
             try {
@@ -3138,6 +3155,140 @@ public class tools {
         }
         
         return result;
+    }
+
+    /**
+     * 通过NetworkInterface获取MAC地址
+     */
+    private String getMacAddressFromNetworkInterface() {
+        try {
+            List<NetworkInterface> networkInterfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
+            for (NetworkInterface networkInterface : networkInterfaces) {
+                String name = networkInterface.getName();
+                // 尝试多种可能的网络接口名称
+                if (name.equalsIgnoreCase("wlan0") || 
+                    name.equalsIgnoreCase("eth0") || 
+                    name.toLowerCase().startsWith("wlan") ||
+                    name.toLowerCase().startsWith("wifi")) {
+                    
+                    byte[] hardwareAddress = networkInterface.getHardwareAddress();
+                    if (hardwareAddress != null && hardwareAddress.length == 6) {
+                        StringBuilder sb = new StringBuilder();
+                        for (byte b : hardwareAddress) {
+                            sb.append(String.format("%02X:", b));
+                        }
+                        if (sb.length() > 0) {
+                            sb.deleteCharAt(sb.length() - 1);
+                            String mac = sb.toString();
+                            // 避免返回无效或随机化的MAC
+                            if (!mac.equals("00:00:00:00:00:00") && 
+                                !mac.startsWith("02:")) {
+                                return mac;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "通过NetworkInterface获取MAC地址失败: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 通过文件系统获取MAC地址
+     */
+    private String getMacAddressFromFile() {
+        String[] macFiles = {
+            "/sys/class/net/wlan0/address",
+            "/sys/class/net/eth0/address",
+            "/sys/class/net/wifi/address"
+        };
+        
+        for (String filePath : macFiles) {
+            try {
+                File file = new File(filePath);
+                if (file.exists() && file.canRead()) {
+                    BufferedReader reader = new BufferedReader(new FileReader(file));
+                    String mac = reader.readLine();
+                    reader.close();
+                    
+                    if (mac != null && mac.length() >= 17) {
+                        mac = mac.toUpperCase().trim();
+                        // 验证MAC地址格式
+                        if (mac.matches("^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$")) {
+                            // 避免返回无效或随机化的MAC
+                            if (!mac.equals("00:00:00:00:00:00") && 
+                                !mac.startsWith("02:")) {
+                                return mac;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.d(TAG, "无法从文件读取MAC地址: " + filePath + ", " + e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 通过命令行获取MAC地址
+     */
+    private String getMacAddressFromCommand() {
+        try {
+            // 尝试多种命令
+            String[] commands = {
+                "cat /sys/class/net/wlan0/address",
+                "ip link show wlan0",
+                "busybox ifconfig wlan0",
+                "ifconfig wlan0"
+            };
+            
+            for (String command : commands) {
+                try {
+                    Process process = Runtime.getRuntime().exec(command);
+                    BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream()));
+                    
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        // 查找MAC地址模式
+                        String mac = extractMacFromLine(line);
+                        if (mac != null && !mac.equals("00:00:00:00:00:00") && 
+                            !mac.startsWith("02:")) {
+                            reader.close();
+                            process.destroy();
+                            return mac;
+                        }
+                    }
+                    reader.close();
+                    process.destroy();
+                } catch (Exception e) {
+                    Log.d(TAG, "命令执行失败: " + command + ", " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "通过命令行获取MAC地址失败: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 从文本行中提取MAC地址
+     */
+    private String extractMacFromLine(String line) {
+        if (line == null) return null;
+        
+        // MAC地址的正则表达式模式
+        String macPattern = "([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})";
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(macPattern);
+        java.util.regex.Matcher matcher = pattern.matcher(line);
+        
+        if (matcher.find()) {
+            return matcher.group().toUpperCase().replace("-", ":");
+        }
+        return null;
     }
 
     public JSONObject disconnectAndForgetWifi(Context context) {

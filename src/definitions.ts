@@ -408,6 +408,12 @@ export interface CurrentWifiResult {
   requiredPermissions?: string[];
 }
 
+export interface SystemBarResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
 export interface toolsPlugin {
   echo(options: { value: string }): Promise<{ value: string }>;
   
@@ -954,4 +960,49 @@ export interface toolsPlugin {
    * }
    */
   getCurrentWifiInfo(): Promise<CurrentWifiResult>;
+
+  /**
+   * 强制隐藏系统状态栏
+   * 
+   * 该方法会：
+   * 1. 隐藏状态栏
+   * 2. 隐藏导航栏
+   * 3. 启用沉浸式全屏模式
+   * 4. 添加监听器自动重新隐藏（防止用户下拉显示）
+   * 
+   * 注意：
+   * - 不需要root权限
+   * - 在某些系统上可能会被系统设置覆盖
+   * - 建议在Activity的onResume中重新调用以确保状态
+   * 
+   * @returns 包含操作结果的Promise
+   * @example
+   * const result = await tools.forceHideSystemBar();
+   * if (result.success) {
+   *   console.log('状态栏已隐藏');
+   * } else {
+   *   console.error('隐藏失败:', result.message);
+   * }
+   */
+  forceHideSystemBar(): Promise<SystemBarResult>;
+
+  /**
+   * 恢复系统状态栏显示
+   * 
+   * 该方法会：
+   * 1. 恢复状态栏显示
+   * 2. 恢复导航栏显示
+   * 3. 退出沉浸式全屏模式
+   * 4. 移除自动隐藏监听器
+   * 
+   * @returns 包含操作结果的Promise
+   * @example
+   * const result = await tools.restoreSystemBar();
+   * if (result.success) {
+   *   console.log('状态栏已恢复显示');
+   * } else {
+   *   console.error('恢复失败:', result.message);
+   * }
+   */
+  restoreSystemBar(): Promise<SystemBarResult>;
 }

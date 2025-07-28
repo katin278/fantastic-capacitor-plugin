@@ -17,7 +17,8 @@ import type {
   WriteDeviceInfoResult,
   UpdateLicenseResult,
   NetworkStatusResult,
-  CurrentWifiResult
+  CurrentWifiResult,
+  SystemBarResult
 } from './definitions';
 
 export class toolsWeb extends WebPlugin implements toolsPlugin {
@@ -560,6 +561,58 @@ export class toolsWeb extends WebPlugin implements toolsPlugin {
     return {
       success: false,
       message: 'Web平台不支持Wi-Fi连接操作'
+    };
+  }
+
+  /**
+   * Web平台不支持状态栏控制
+   */
+  async forceHideSystemBar(): Promise<SystemBarResult> {
+    if (document.fullscreenEnabled) {
+      try {
+        // 尝试使用网页全屏作为替代方案
+        await document.documentElement.requestFullscreen();
+        return {
+          success: true,
+          message: '网页已进入全屏模式'
+        };
+      } catch (e) {
+        return {
+          success: false,
+          message: '进入全屏模式失败',
+          error: e instanceof Error ? e.message : '未知错误'
+        };
+      }
+    }
+    return {
+      success: false,
+      message: 'Web平台不完全支持状态栏控制，但可以使用全屏模式'
+    };
+  }
+
+  /**
+   * Web平台不支持状态栏控制
+   */
+  async restoreSystemBar(): Promise<SystemBarResult> {
+    if (document.fullscreenElement) {
+      try {
+        // 退出全屏模式
+        await document.exitFullscreen();
+        return {
+          success: true,
+          message: '已退出全屏模式'
+        };
+      } catch (e) {
+        return {
+          success: false,
+          message: '退出全屏模式失败',
+          error: e instanceof Error ? e.message : '未知错误'
+        };
+      }
+    }
+    return {
+      success: true,
+      message: '已处于非全屏模式'
     };
   }
 }

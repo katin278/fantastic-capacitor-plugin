@@ -3,6 +3,7 @@ package com.fantastic.tools;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.util.Log;
+import android.app.Activity;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -875,6 +876,34 @@ public class toolsPlugin extends Plugin {
             call.resolve(jsResult);
         } catch (Exception e) {
             call.reject("获取Wi-Fi信息失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 强制隐藏系统状态栏
+     */
+    @PluginMethod
+    public void forceHideSystemBar(PluginCall call) {
+        try {
+            JSONObject result = implementation.forceHideSystemBar((Activity) getContext());
+            JSObject jsResult = JSObject.fromJSONObject(result);
+            call.resolve(jsResult);
+        } catch (Exception e) {
+            call.reject("隐藏系统状态栏失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 恢复系统状态栏显示
+     */
+    @PluginMethod
+    public void restoreSystemBar(PluginCall call) {
+        try {
+            JSONObject result = implementation.restoreSystemBar((Activity) getContext());
+            JSObject jsResult = JSObject.fromJSONObject(result);
+            call.resolve(jsResult);
+        } catch (Exception e) {
+            call.reject("恢复系统状态栏失败: " + e.getMessage());
         }
     }
 }

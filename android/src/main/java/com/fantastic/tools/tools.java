@@ -79,6 +79,11 @@ import android.content.pm.ApplicationInfo;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
+import android.app.Activity;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
+
 public class tools {
     private static final String TAG = "FantasticWifiTools";
     private BroadcastReceiver sdCardReceiver;
@@ -3750,5 +3755,123 @@ public class tools {
             }
         }
         return "UNKNOWN";
+    }
+
+    /**
+     * 强制关闭系统状态栏
+     * @param activity Activity实例
+     * @return JSONObject 包含操作结果
+     */
+    public JSONObject forceHideSystemBar(Activity activity) {
+        JSONObject result = new JSONObject();
+        try {
+            if (activity == null) {
+                result.put("success", false);
+                result.put("message", "Activity不能为空");
+                return result;
+            }
+
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        // 获取当前窗口
+                        Window window = activity.getWindow();
+                        
+                        // 设置全屏标志
+                        window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                                      WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                        
+                        // 隐藏导航栏和状态栏
+                        View decorView = window.getDecorView();
+                        int uiOptions = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+                        
+                        decorView.setSystemUiVisibility(uiOptions);
+                        
+                        // 监听系统UI可见性变化
+                        decorView.setOnSystemUiVisibilityChangeListener(
+                            new View.OnSystemUiVisibilityChangeListener() {
+                                @Override
+                                public void onSystemUiVisibilityChange(int visibility) {
+                                    if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
+                                        // 如果系统UI变得可见，则再次隐藏
+                                        decorView.setSystemUiVisibility(uiOptions);
+                                    }
+                                }
+                            });
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            
+            result.put("success", true);
+            result.put("message", "系统状态栏已隐藏");
+            
+        } catch (Exception e) {
+            try {
+                result.put("success", false);
+                result.put("message", "错误: " + e.getMessage());
+            } catch (JSONException je) {
+                // 处理JSON异常
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 恢复系统状态栏显示
+     * @param activity Activity实例
+     * @return JSONObject 包含操作结果
+     */
+    public JSONObject restoreSystemBar(Activity activity) {
+        JSONObject result = new JSONObject();
+        try {
+            if (activity == null) {
+                result.put("success", false);
+                result.put("message", "Activity不能为空");
+                return result;
+            }
+
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        // 获取当前窗口
+                        Window window = activity.getWindow();
+                        
+                        // 清除全屏标志
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                        
+                        // 恢复系统UI显示
+                        View decorView = window.getDecorView();
+                        int uiOptions = View.SYSTEM_UI_FLAG_VISIBLE;
+                        decorView.setSystemUiVisibility(uiOptions);
+                        
+                        // 移除系统UI可见性监听器
+                        decorView.setOnSystemUiVisibilityChangeListener(null);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            
+            result.put("success", true);
+            result.put("message", "系统状态栏已恢复显示");
+            
+        } catch (Exception e) {
+            try {
+                result.put("success", false);
+                result.put("message", "错误: " + e.getMessage());
+            } catch (JSONException je) {
+                // 处理JSON异常
+            }
+        }
+        return result;
     }
 }

@@ -2581,6 +2581,23 @@ public class tools {
             DataOutputStream outputStream = new DataOutputStream(process.getOutputStream());
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+            
+            // 解决权限不足问题
+            outputStream.writeBytes("./system/bin/remount 2>&1\n");
+            outputStream.writeBytes("echo $?\n");  // 获取命令执行状态
+            outputStream.flush();
+            
+            // 读取命令执行结果
+            String remountResult = "";
+            String remountLine;
+            while ((remountLine = reader.readLine()) != null && !remountLine.matches("\\d+")) {
+                remountResult += remountLine + "\n";
+            }
+            int exitCode = remountLine != null ? Integer.parseInt(remountLine) : -1;
+            
+            if (exitCode != 0) {
+                throw new IOException("./system/bin/remount命令执行失败: " + remountResult);
+            }
 
             // 重新挂载vendor分区为可写
             outputStream.writeBytes("mount -o remount,rw /vendor\n");
